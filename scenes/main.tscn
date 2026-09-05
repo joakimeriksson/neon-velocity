@@ -1,0 +1,60 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/race.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/track_builder.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/ship.tscn" id="3"]
+[ext_resource type="Script" path="res://scripts/chase_camera.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="5"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
+sky_top_color = Color(0.02, 0.02, 0.08, 1)
+sky_horizon_color = Color(0.3, 0.08, 0.4, 1)
+sky_curve = 0.2
+ground_bottom_color = Color(0.01, 0.01, 0.03, 1)
+ground_horizon_color = Color(0.3, 0.08, 0.4, 1)
+sun_angle_max = 10.0
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_mat")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 2
+sky = SubResource("sky")
+ambient_light_source = 3
+ambient_light_energy = 0.6
+tonemap_mode = 3
+tonemap_exposure = 1.1
+ssr_enabled = true
+glow_enabled = true
+glow_intensity = 1.0
+glow_bloom = 0.1
+glow_blend_mode = 1
+glow_hdr_threshold = 1.2
+fog_enabled = true
+fog_light_color = Color(0.25, 0.07, 0.35, 1)
+fog_density = 0.003
+fog_aerial_perspective = 0.5
+
+[node name="Race" type="Node3D"]
+script = ExtResource("1")
+ship_scene = ExtResource("3")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766, -0.482, 0.425, 0, 0.661, 0.75, -0.643, -0.574, 0.507, 0, 40, 0)
+light_color = Color(1, 0.75, 0.6, 1)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Track" type="Node3D" parent="."]
+script = ExtResource("2")
+
+[node name="ChaseCamera" type="Camera3D" parent="."]
+doppler_tracking = 2
+far = 2000.0
+script = ExtResource("4")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("5")

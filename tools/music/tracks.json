@@ -1,0 +1,49 @@
+{
+  "_comment": "Soundtrack spec for AG Racer. Each entry becomes one generated track. Tags drive ACE-Step; keep them comma-separated and concrete (genre, tempo, instrumentation, mood). `duration` is seconds. `seed` keeps a take reproducible - change it to roll a different take of the same brief. Direction: synth-forward EDM over drum-and-bass beats. Avoid distortion/industrial/guitar words - they pull the model toward rock.",
+  "defaults": {
+    "duration": 180,
+    "infer_step": 60,
+    "guidance_scale": 15.0,
+    "omega_scale": 10.0,
+    "scheduler_type": "euler",
+    "cfg_type": "apg"
+  },
+  "tracks": [
+    {
+      "name": "01_neon_horizon",
+      "seed": 8121,
+      "tags": "melodic drum and bass, edm, 174 bpm, instrumental, soaring supersaw lead, lush analog synth pads, clean punchy breakbeat, deep round sub bass, sidechained chords, euphoric, polished electronic production, no vocals, no guitars"
+    },
+    {
+      "name": "02_vector_bloom",
+      "seed": 8232,
+      "tags": "liquid drum and bass, melodic edm, 172 bpm, instrumental, warm electric piano chords, silky synth pads, smooth rolling breakbeat, deep clean sub bass, shimmering bells, uplifting, spacious, glossy production, no vocals, no guitars"
+    },
+    {
+      "name": "03_ion_drift",
+      "seed": 8343,
+      "tags": "synthwave drum and bass, 174 bpm, instrumental, arpeggiated analog synthesizer, gated reverb pads, neon retro-futuristic lead, crisp breakbeat, warm analog bass, cinematic, driving, clean, no vocals, no guitars"
+    },
+    {
+      "name": "04_photon_rush",
+      "seed": 8454,
+      "tags": "trance influenced drum and bass, 175 bpm, instrumental, anthemic supersaw chords, long filter riser, sidechained pumping pads, rolling amen break, melodic sub bass, euphoric big room energy, clean modern production, no vocals, no guitars"
+    },
+    {
+      "name": "05_glass_circuit",
+      "seed": 8565,
+      "tags": "melodic breakbeat, progressive electronic, 170 bpm, instrumental, crystalline synth plucks, filtered arpeggio sequence, glassy bell tones, tight clean drums, deep smooth bassline, hypnotic, elegant, no vocals, no guitars"
+    },
+    {
+      "name": "06_solar_wake",
+      "seed": 8676,
+      "tags": "uplifting drum and bass, melodic edm, 176 bpm, instrumental, big bright synth chord stabs, soaring detuned lead, energetic rolling break, punchy clean kick and snare, warm sub bass, triumphant, festival energy, no vocals, no guitars"
+    },
+    {
+      "name": "07_starting_grid",
+      "seed": 8787,
+      "duration": 120,
+      "tags": "ambient synthwave, 120 bpm, instrumental, slow analog arpeggio, warm evolving synth pad, soft sub drone, sparse electronic percussion, building anticipation, calm neon menu music, clean, no vocals, no guitars"
+    }
+  ]
+}

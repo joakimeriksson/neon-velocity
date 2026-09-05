@@ -39,7 +39,8 @@ binary into `addons/gamesynth/bin/`. With it loaded:
   `set_state(throttle, boost, speed, damage)` each frame; wall hits add damage that repairs over time.
   Preset per ship via `EngineAudio.jet_preset` (Racer / Heavy / Turbine / Scramjet); tune the ~25
   params in a `JetEnginePatch` `.tres` later.
-- SFX slots without a WAV fall back to `SynthStream` presets (`Sfx.SYNTH_FALLBACK` maps name -> preset, seed).
+- SFX slots without a WAV are synthesised at startup in `scripts/sfx.gd` (whoosh, thud, ticks, chimes) — the
+  sfxr-style `SynthStream` presets were tried and sounded too arcade for this game.
 
 Stage 1 files still take priority wherever they exist, so rendered loops or samples can replace any layer.
 

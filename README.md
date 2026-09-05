@@ -81,7 +81,7 @@ Exports with the `Web` preset in `export_presets.cfg` (single-threaded, so it ru
 GitHub Pages included). The web platform uses the Compatibility renderer, so volumetric fog, SSR and FSR
 are absent there; `project.godot` carries `.web` overrides for the settings that only exist in Forward+.
 The gamesynth extension has no WASM build yet, so the web version uses the built-in engine loops and SFX.
-Four of the seven music tracks are excluded to keep the download near 55 MB.
+All music tracks are included in the web build.
 
     godot --headless --path . --export-release "Web" build/web/index.html
     python3 tools/serve_web.py 8060      # then open http://127.0.0.1:8060/index.html

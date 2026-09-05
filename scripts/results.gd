@@ -69,7 +69,7 @@ func refresh() -> void:
 		elif ship.finished:
 			t = UiTheme.fmt_time(ship.finish_time)
 		else:
-			t = "racing…"
+			t = "racing..."
 		_table.add_child(UiTheme.label(t, 20, col, HORIZONTAL_ALIGNMENT_RIGHT))
 		_table.add_child(UiTheme.label("lap " + UiTheme.fmt_time(ship.best_lap) if ship.best_lap < INF else "", 20, col, HORIZONTAL_ALIGNMENT_LEFT))
 

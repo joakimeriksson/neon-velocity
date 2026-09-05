@@ -1,7 +1,7 @@
 extends Node
 
 ## High-score table per circuit. If Game.last_result qualifies, starts with arcade-style
-## three-letter initials entry (↑↓ change letter, ←→ move, ✕/Enter confirm; keys type).
+## three-letter initials entry (Up/Down change letter, Left/Right move, Cross/Enter confirm; keys type).
 
 const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
 
@@ -63,7 +63,7 @@ func _build_entry() -> void:
 		row.add_child(l)
 		_letter_labels.append(l)
 	_entry_box.add_child(row)
-	_entry_box.add_child(UiTheme.label("↑↓ letter    ←→ move    %s confirm" % UiTheme.accept_hint(), 18, UiTheme.DIM))
+	_entry_box.add_child(UiTheme.label("Up/Down letter    Left/Right move    %s confirm" % UiTheme.accept_hint(), 18, UiTheme.DIM))
 
 
 func _build_table() -> void:
@@ -74,7 +74,7 @@ func _build_table() -> void:
 	_grid.add_theme_constant_override("h_separation", 36)
 	_grid.add_theme_constant_override("v_separation", 6)
 	_table_box.add_child(_grid)
-	_table_box.add_child(UiTheme.label("←→ / L1 R1 circuit      %s / ○ title" % UiTheme.accept_hint(), 18, UiTheme.DIM))
+	_table_box.add_child(UiTheme.label("Left/Right / L1 R1 circuit      %s / Circle title" % UiTheme.accept_hint(), 18, UiTheme.DIM))
 	_refresh_table()
 
 

@@ -25,7 +25,7 @@ func _ready() -> void:
 	_resume = _add("Resume", func(): set_paused(false))
 	_add("Restart race", func(): Game.start_race(Game.track_index))
 	_add("Quit to title", Game.to_title)
-	_box.add_child(UiTheme.label("○ / Esc resume", 18, UiTheme.DIM))
+	_box.add_child(UiTheme.label("Circle / Esc resume", 18, UiTheme.DIM))
 
 
 func _add(text: String, on_pressed: Callable) -> Button:

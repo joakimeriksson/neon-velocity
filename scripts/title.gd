@@ -61,7 +61,7 @@ func _ready() -> void:
 	_select_box.add_child(hs)
 	_buttons.append(hs)
 	_select_box.add_child(_spacer(10))
-	_select_box.add_child(UiTheme.label("↑↓ / D-pad select     %s start     ○ / Esc back" % UiTheme.accept_hint(), 18, UiTheme.DIM))
+	_select_box.add_child(UiTheme.label("Up/Down / D-pad select     %s start     Circle / Esc back" % UiTheme.accept_hint(), 18, UiTheme.DIM))
 
 	Input.joy_connection_changed.connect(func(_d, _c): _update_pad())
 	_update_pad()
@@ -114,7 +114,7 @@ func _show_page(p: Page) -> void:
 
 func _update_pad() -> void:
 	var pad := Game.controller_name()
-	_pad_label.text = "🎮 %s connected" % pad if pad != "" else "Keyboard: W/S thrust, A/D steer, Q/E airbrakes   ·   plug in a PlayStation controller for the full experience"
+	_pad_label.text = "%s connected" % pad if pad != "" else "Keyboard: W/S thrust, A/D steer, Q/E airbrakes   ·   plug in a PlayStation controller for the full experience"
 
 
 func _centered_box() -> VBoxContainer:

@@ -62,4 +62,4 @@ static func ordinal(n: int) -> String:
 
 
 static func accept_hint() -> String:
-	return "✕ / Enter" if Input.get_connected_joypads().size() > 0 else "Enter"
+	return "Cross / Enter" if Input.get_connected_joypads().size() > 0 else "Enter"

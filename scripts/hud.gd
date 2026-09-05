@@ -37,6 +37,9 @@ func format_time(t: float) -> String:
 func _make_label(size: int, preset: int, grow_h: int, grow_v: int) -> Label:
 	var label := Label.new()
 	label.add_theme_font_size_override("font_size", size)
+	# Readable against a bright daylight sky as well as the night city.
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+	label.add_theme_constant_override("outline_size", maxi(3, size / 10))
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if grow_h == Control.GROW_DIRECTION_END else HORIZONTAL_ALIGNMENT_RIGHT
 	label.set_anchors_and_offsets_preset(preset, Control.PRESET_MODE_MINSIZE, 24)
 	label.grow_horizontal = grow_h

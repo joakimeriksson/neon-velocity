@@ -9,6 +9,7 @@ extends CharacterBody3D
 
 signal boosted
 signal wall_hit(strength: float)
+signal ship_hit(strength: float)
 
 @export_group("Engine")
 @export var max_speed := 95.0        ## m/s (~340 km/h)
@@ -24,7 +25,8 @@ signal wall_hit(strength: float)
 @export var airbrake_turn := 1.4     ## extra rad/s while an airbrake is held
 @export var lateral_grip := 4.0      ## how quickly sideways velocity is killed
 @export var airbrake_grip := 1.2     ## lower grip while airbraking -> slide
-@export var wall_scrape := 0.15      ## fraction of speed lost per wall hit
+@export var wall_scrape := 0.15      ## fraction of speed lost on wall impact
+@export var scrape_drag := 1.2       ## extra drag per second while sliding along a wall
 
 @export_group("Hover")
 @export var hover_height := 1.3
@@ -64,12 +66,14 @@ var frame_hint := -1
 var spawn_transform := Transform3D.IDENTITY
 var speed := 0.0
 var grounded := false
+var scraping := false
 
 var _up := Vector3.UP
 var _bank := 0.0
 var _pitch := 0.0
 var _throttle := 0.0
 var _last_wall_hit_ms := 0
+var _last_ship_hit_ms := 0
 
 
 func _ready() -> void:
@@ -151,14 +155,27 @@ func _physics_process(delta: float) -> void:
 	up_direction = _up
 	move_and_slide()
 
+	var touching_wall := false
+	var now := Time.get_ticks_msec()
 	for i in get_slide_collision_count():
-		if absf(get_slide_collision(i).get_normal().dot(_up)) < 0.5:
+		var c := get_slide_collision(i)
+		if c.get_collider() is Ship:
+			if now - _last_ship_hit_ms > 300:
+				_last_ship_hit_ms = now
+				var other: Ship = c.get_collider()
+				ship_hit.emit(clampf((velocity - other.velocity).length() / max_speed, 0.1, 1.0))
+		elif absf(c.get_normal().dot(_up)) < 0.5:
+			touching_wall = true
+	if touching_wall:
+		if not scraping:
+			# First contact is the impact; after that it's a scrape.
 			velocity -= velocity * wall_scrape
-			var now := Time.get_ticks_msec()
 			if now - _last_wall_hit_ms > 250:
 				_last_wall_hit_ms = now
-				wall_hit.emit(speed / max_speed)
-			break
+				wall_hit.emit(clampf(speed / max_speed, 0.15, 1.0))
+		else:
+			velocity -= velocity * minf(scrape_drag * delta, 1.0)
+	scraping = touching_wall
 
 	speed = (velocity - _up * velocity.dot(_up)).length()
 	_throttle = lerpf(_throttle, throttle_in, minf(6.0 * delta, 1.0))

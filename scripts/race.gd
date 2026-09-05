@@ -47,7 +47,12 @@ func _ready() -> void:
 		driver.setup(track, 1.0, 0.0)
 	else:
 		player.add_child(PlayerDriver.new())
-		player.wall_hit.connect(func(strength: float): _rumble(0.3, strength, 0.25))
+		player.wall_hit.connect(func(strength: float):
+			_rumble(0.4, strength, 0.3)
+			camera.shake(strength))
+		player.ship_hit.connect(func(strength: float):
+			_rumble(0.6, strength * 0.7, 0.2)
+			camera.shake(strength * 0.6))
 		player.boosted.connect(func(): _rumble(0.9, 0.3, 0.45))
 
 	camera.target = player

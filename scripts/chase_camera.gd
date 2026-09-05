@@ -10,6 +10,13 @@ extends Camera3D
 @export var follow_speed := 9.0
 @export var base_fov := 75.0
 @export var speed_fov := 20.0
+@export var shake_strength := 0.7
+
+var _shake := 0.0
+
+
+func shake(amount: float) -> void:
+	_shake = maxf(_shake, amount)
 
 
 func _ready() -> void:
@@ -32,6 +39,9 @@ func _physics_process(delta: float) -> void:
 	var desired := t.origin - fwd * distance + up * height
 	var k := 1.0 - exp(-follow_speed * delta)
 	global_position = global_position.lerp(desired, k)
+	if _shake > 0.001:
+		global_position += (t.basis.x * randf_range(-1.0, 1.0) + up * randf_range(-1.0, 1.0)) * _shake * shake_strength
+		_shake *= exp(-7.0 * delta)
 	look_at(t.origin + fwd * look_ahead, up)
 	var s := target.speed / target.max_speed
 	fov = lerpf(fov, base_fov + speed_fov * s, minf(4.0 * delta, 1.0))

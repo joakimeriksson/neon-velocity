@@ -28,6 +28,8 @@ var _turbine: AudioStreamPlayer3D
 var _exhaust_low: AudioStreamPlayer3D
 var _exhaust_high: AudioStreamPlayer3D
 var _hiss: AudioStreamPlayer3D
+var _scrape: AudioStreamPlayer3D
+var _scrape_gain := 0.0
 var _impact: AudioStreamPlayer3D
 
 var _jet: AudioStreamPlayer3D
@@ -50,8 +52,10 @@ func _ready() -> void:
 		return
 	ship.boosted.connect(_on_boost)
 	ship.wall_hit.connect(_on_wall_hit)
+	ship.ship_hit.connect(func(strength: float): Sfx.play_at("ship_hit", ship.global_position, 0.9 + strength * 0.3, -8.0 + strength * 10.0))
 	# Airbrake hiss stays a loop in both modes; the jet has no airbrake layer.
 	_hiss = _make_player("exhaust_high", _gen_noise_high)
+	_scrape = _make_player("scrape", _gen_scrape)
 	if has_jet_engine():
 		_jet = AudioStreamPlayer3D.new()
 		_jet.stream = ClassDB.class_call_static("JetEngineStream", "from_preset", jet_preset)
@@ -79,6 +83,9 @@ func _process(delta: float) -> void:
 	_hiss_gain = lerpf(_hiss_gain, 1.0 if airbraking else 0.0, minf((12.0 if airbraking else 4.0) * delta, 1.0))
 	_hiss.pitch_scale = 1.4
 	_set_gain(_hiss, _hiss_gain * (0.15 + speed_ratio * 0.3))
+	_scrape_gain = lerpf(_scrape_gain, 1.0 if ship.scraping else 0.0, minf((25.0 if ship.scraping else 8.0) * delta, 1.0))
+	_scrape.pitch_scale = 0.8 + speed_ratio * 0.6
+	_set_gain(_scrape, _scrape_gain * (0.2 + speed_ratio * 0.7))
 
 	if _jet_pb:
 		if not _jet.playing:
@@ -118,7 +125,7 @@ func _on_boost() -> void:
 
 func _on_wall_hit(strength: float) -> void:
 	_damage = minf(_damage + strength * damage_per_hit, 1.0)
-	Sfx.play_at("wall_hit", ship.global_position, 0.8 + strength * 0.4, -12.0 + strength * 12.0)
+	Sfx.play_at("wall_hit", ship.global_position, 0.85 + strength * 0.3, -6.0 + strength * 10.0)
 	if _impact:
 		_impact_env = clampf(strength * 1.2, 0.2, 1.0)
 		_impact.pitch_scale = 0.6
@@ -229,6 +236,19 @@ static func _gen_noise_low(out: PackedFloat32Array) -> void:
 		brown = clampf(brown + (randf() * 2.0 - 1.0) * 0.05, -1.0, 1.0)
 		lp += a * (brown - lp)
 		out[i] = lp
+
+
+## Metal-on-wall scrape: gritty high-passed noise with fast random amplitude flutter.
+static func _gen_scrape(out: PackedFloat32Array) -> void:
+	var lp := 0.0
+	var a := 1.0 - exp(-TAU * 1800.0 / RATE)
+	var grit := 1.0
+	for i in LOOP_LEN:
+		if i % 220 == 0:
+			grit = 0.3 + randf() * 0.7
+		var white := randf() * 2.0 - 1.0
+		lp += a * (white - lp)
+		out[i] = (white - lp) * grit
 
 
 ## Bright exhaust / airbrake hiss: white noise through a ~1500 Hz one-pole high-pass.

@@ -10,7 +10,7 @@ enum State { COUNTDOWN, RACING, FINISHED }
 @export var ai_count := 4
 @export var countdown_seconds := 3.0
 
-const AI_NAMES := ["Feisar", "AG-Sys", "Auricom", "Qirex", "Piranha", "Assegai"]
+const AI_NAMES := ["Halcyon", "Voss", "Kestrel", "Mirage", "Sable-9", "Tessera"]
 ## Engine sound per AI slot: gamesynth preset plus parameter tweaks so no two ships sound alike.
 const AI_ENGINES := [
 	["Heavy", {}],

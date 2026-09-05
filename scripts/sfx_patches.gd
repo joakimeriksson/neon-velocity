@@ -11,9 +11,9 @@ const PATCHES := {
 		"osc1/wave": 5, "osc1/level": 1.0,
 		"osc2/wave": 0, "osc2/level": 0.55, "osc2/semitones": -24.0,
 		"pitch/slide": 18.0,
-		"filter/mode": 1, "filter/cutoff_hz": 260.0, "filter/resonance": 0.55, "filter/sweep": 5.0,
-		"amp_env/attack": 0.06, "amp_env/decay": 0.55, "amp_env/sustain": 0.0, "amp_env/release": 0.3,
-		"fx/drive": 0.25, "master/gain": 0.8, "master/base_note": 60.0,
+		"filter/mode": 1, "filter/cutoff_hz": 220.0, "filter/resonance": 0.65, "filter/sweep": 4.5,
+		"amp_env/attack": 0.05, "amp_env/decay": 0.75, "amp_env/sustain": 0.0, "amp_env/release": 0.4,
+		"fx/drive": 0.25, "master/gain": 0.95, "master/base_note": 60.0,
 	},
 	# Boost pad bell: big inharmonic bell (hum, prime, tierce-ish partials), slow shimmer,
 	# long decay. Played at the pad, so it rings behind you as you speed away.

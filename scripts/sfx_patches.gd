@@ -26,15 +26,27 @@ const PATCHES := {
 		"amp_env/attack": 0.003, "amp_env/decay": 6.0, "amp_env/sustain": 0.0, "amp_env/release": 2.0,
 		"fx/drive": 0.15, "master/gain": 0.9, "master/base_note": 57.0,
 	},
-	# Wall strike: noise crunch closing down fast, sub thud dropping, a square partial for metal.
+	# Wall strike, layer 1: heavy metal crunch. Low square + clashing detuned saw + noise,
+	# pitch sagging, hard drive, a fast amplitude rattle.
 	"wall_hit": {
-		"osc1/wave": 5, "osc1/level": 1.0,
-		"osc2/wave": 0, "osc2/level": 1.0, "osc2/semitones": -27.0,
-		"osc3/wave": 3, "osc3/level": 0.3, "osc3/semitones": 19.0, "osc3/detune_cents": 12.0,
-		"pitch/slide": -22.0,
-		"filter/mode": 1, "filter/cutoff_hz": 7000.0, "filter/resonance": 0.35, "filter/sweep": -9.0,
-		"amp_env/attack": 0.002, "amp_env/decay": 0.32, "amp_env/sustain": 0.0, "amp_env/release": 0.2,
-		"fx/drive": 0.7, "master/gain": 0.9, "master/base_note": 60.0,
+		"osc1/wave": 3, "osc1/level": 0.9, "osc1/semitones": -12.0,
+		"osc2/wave": 2, "osc2/level": 0.7, "osc2/semitones": -4.7, "osc2/detune_cents": 18.0,
+		"osc3/wave": 5, "osc3/level": 0.9,
+		"pitch/slide": -7.0,
+		"lfo/wave": 3, "lfo/rate_hz": 11.0, "lfo/amp": 0.3,
+		"filter/mode": 1, "filter/cutoff_hz": 5000.0, "filter/resonance": 0.5, "filter/sweep": -5.0,
+		"amp_env/attack": 0.001, "amp_env/decay": 0.5, "amp_env/sustain": 0.0, "amp_env/release": 0.35,
+		"fx/drive": 0.9, "master/gain": 1.0, "master/base_note": 55.0,
+	},
+	# Wall strike, layer 2: the clang that rings on at the point of impact.
+	"wall_clang": {
+		"osc1/wave": 0, "osc1/level": 1.0,
+		"osc2/wave": 0, "osc2/level": 0.7, "osc2/semitones": 8.7, "osc2/detune_cents": 14.0,
+		"osc3/wave": 3, "osc3/level": 0.3, "osc3/semitones": 19.6, "osc3/detune_cents": -11.0,
+		"lfo/wave": 0, "lfo/rate_hz": 14.0, "lfo/amp": 0.3,
+		"filter/mode": 1, "filter/cutoff_hz": 6500.0, "filter/resonance": 0.2, "filter/sweep": -2.0,
+		"amp_env/attack": 0.002, "amp_env/decay": 1.2, "amp_env/sustain": 0.0, "amp_env/release": 0.6,
+		"fx/drive": 0.45, "master/gain": 0.85, "master/base_note": 64.0,
 	},
 	# Ship-to-ship: short bright metallic clank through a resonant band-pass.
 	"ship_hit": {

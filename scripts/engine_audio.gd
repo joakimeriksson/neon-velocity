@@ -146,9 +146,11 @@ func _on_wall_hit(strength: float) -> void:
 	_duck = 1.0
 	if ship.is_player:
 		# The player's own hit: straight to the mix, loud, no distance falloff.
-		Sfx.play("wall_hit", 0.85 + strength * 0.3, 4.0 + strength * 6.0)
+		Sfx.play("wall_hit", 0.85 + strength * 0.3, 6.0 + strength * 6.0)
 	else:
 		Sfx.play_at("wall_hit", ship.global_position, 0.85 + strength * 0.3, -6.0 + strength * 10.0)
+	# The clang stays on the wall where it happened.
+	Sfx.play_at("wall_clang", ship.global_position, 0.9 + strength * 0.25, (2.0 if ship.is_player else -4.0) + strength * 6.0, 30.0)
 	if _impact:
 		_impact_env = clampf(strength * 1.2, 0.2, 1.0)
 		_impact.pitch_scale = 0.6

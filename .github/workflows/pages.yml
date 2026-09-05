@@ -55,10 +55,8 @@ jobs:
           touch build/web/.nojekyll
           ls -la build/web
 
-      - name: Enable Pages for this repository if needed
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      # Pages must be enabled once by hand: Settings > Pages > Source: GitHub Actions.
+      - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:

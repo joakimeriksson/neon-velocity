@@ -110,7 +110,7 @@ height = 1.0
 radial_segments = 24
 rings = 8
 cap_top = false
-cap_bottom = true
+cap_bottom = false
 
 [sub_resource type="StandardMaterial3D" id="core_mat"]
 transparency = 1
@@ -120,12 +120,12 @@ albedo_color = Color(0.55, 0.85, 1, 1)
 albedo_texture = SubResource("soft_tex")
 emission_enabled = true
 emission = Color(0.55, 0.85, 1, 1)
-emission_energy_multiplier = 1.6
+emission_energy_multiplier = 0.5
 billboard_mode = 1
 
 [sub_resource type="QuadMesh" id="core_quad"]
 material = SubResource("core_mat")
-size = Vector2(1.1, 1.1)
+size = Vector2(0.55, 0.55)
 
 [sub_resource type="Gradient" id="jet_grad"]
 offsets = PackedFloat32Array(0, 0.18, 0.45, 0.75, 1)
@@ -158,19 +158,19 @@ color_ramp = SubResource("jet_grad_tex")
 
 [sub_resource type="StandardMaterial3D" id="jet_mat"]
 transparency = 1
-blend_mode = 1
+blend_mode = 0
 shading_mode = 0
 vertex_color_use_as_albedo = true
-albedo_color = Color(1, 1, 1, 0.55)
+albedo_color = Color(1, 1, 1, 0.6)
 albedo_texture = SubResource("soft_tex")
 emission_enabled = true
 emission = Color(1, 1, 1, 1)
-emission_energy_multiplier = 0.7
+emission_energy_multiplier = 1.4
 billboard_mode = 3
 
 [sub_resource type="QuadMesh" id="jet_quad"]
 material = SubResource("jet_mat")
-size = Vector2(0.7, 0.7)
+size = Vector2(0.5, 0.5)
 
 [node name="Ship" type="CharacterBody3D"]
 motion_mode = 1
@@ -248,7 +248,7 @@ cast_shadow = 0
 
 [node name="JetL" type="GPUParticles3D" parent="Body"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.65, 0, 2.5)
-amount = 160
+amount = 70
 lifetime = 0.16
 local_coords = true
 process_material = SubResource("jet_pm")
@@ -256,7 +256,7 @@ draw_pass_1 = SubResource("jet_quad")
 
 [node name="JetR" type="GPUParticles3D" parent="Body"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 0, 2.5)
-amount = 160
+amount = 70
 lifetime = 0.16
 local_coords = true
 process_material = SubResource("jet_pm")

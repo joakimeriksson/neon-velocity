@@ -213,8 +213,14 @@ func _update_visuals(lateral: float, delta: float) -> void:
 	var width := 0.85 + _throttle * 0.25 + _boost_vis * 0.4
 	for flame in _flames:
 		flame.scale = Vector3(width, length, width)
-	_flame_mat.set_shader_parameter("intensity", 0.35 + _throttle * 0.9 + _boost_vis * 0.6)
+	_flame_mat.set_shader_parameter("intensity", 0.2 + _throttle * 0.5 + _boost_vis * 0.5)
 	_flame_mat.set_shader_parameter("boost", _boost_vis)
+	if OS.has_environment("AG_NO_EXHAUST"):
+		for f in _flames: f.visible = false
+		for c in _cores: c.visible = false
+		for j in _jets: j.visible = false
+		trail.visible = false
+		return
 	# Particle jet: density and reach follow throttle; boost throws it much further.
 	var jet_ratio := clampf(0.15 + _throttle * 0.85, 0.0, 1.0)
 	for jet in _jets:
@@ -222,7 +228,7 @@ func _update_visuals(lateral: float, delta: float) -> void:
 		jet.lifetime = 0.12 + _throttle * 0.08 + _boost_vis * 0.12
 		jet.speed_scale = 1.0 + _boost_vis * 0.6
 	# Hot core disc at the nozzle: the part that reads from straight behind.
-	var core := 0.5 + _throttle * 0.6 + _boost_vis * 0.8
+	var core := 0.5 + _throttle * 0.4 + _boost_vis * 0.6
 	for c in _cores:
 		c.scale = Vector3.ONE * core
 		c.transparency = 0.0

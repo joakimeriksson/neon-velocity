@@ -8,6 +8,7 @@ extends Camera3D
 @export var height := 2.8
 @export var look_ahead := 10.0
 @export var follow_speed := 11.0
+@export var turn_follow := 4.0   ## how quickly the camera swings round behind a turning ship
 @export var base_fov := 75.0
 @export var speed_fov := 20.0
 @export var shake_strength := 0.7
@@ -26,19 +27,34 @@ func _ready() -> void:
 
 func _snap() -> void:
 	var t := target.global_transform
+	_fwd_smooth = -t.basis.z
+	_offset = t.basis.z * distance + t.basis.y * height
 	global_position = t.origin + t.basis.z * distance + t.basis.y * height
 	look_at(t.origin - t.basis.z * look_ahead, t.basis.y)
+
+
+var _fwd_smooth := Vector3.FORWARD
+var _offset := Vector3.ZERO
 
 
 func _physics_process(delta: float) -> void:
 	if not target:
 		return
 	var t := target.global_transform
-	var fwd := -t.basis.z
 	var up := t.basis.y
-	var desired := t.origin - fwd * distance + up * height
+	# Smooth the heading the camera hangs off, so a sharp turn doesn't fling the ship to
+	# the edge of the frame; the ship's own yaw still reads through its bank and drift.
+	var raw_fwd := -t.basis.z
+	if _fwd_smooth.length_squared() < 0.5:
+		_fwd_smooth = raw_fwd
+	_fwd_smooth = _fwd_smooth.slerp(raw_fwd, 1.0 - exp(-turn_follow * delta)).normalized()
+	var fwd := _fwd_smooth
+	# Smooth the offset in the ship's frame, not the world position: a world-space lerp
+	# trails further behind the faster the ship goes (17 m at top speed instead of 8.5).
+	var desired_offset := -fwd * distance + up * height
 	var k := 1.0 - exp(-follow_speed * delta)
-	global_position = global_position.lerp(desired, k)
+	_offset = _offset.lerp(desired_offset, k)
+	global_position = t.origin + _offset
 	if _shake > 0.001:
 		global_position += (t.basis.x * randf_range(-1.0, 1.0) + up * randf_range(-1.0, 1.0)) * _shake * shake_strength
 		_shake *= exp(-7.0 * delta)

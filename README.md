@@ -55,7 +55,10 @@ Check that no circuit folds back on itself:
 
     godot --headless --path . -s tools/check_tracks.gd
 
-`AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone.
+`AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone; `AG_NO_EXHAUST=1` hides the
+afterburners. `tools/flame_test.tscn` is a side-view rig for tuning the exhaust:
+
+    godot --path . --write-movie out/flame.avi --fixed-fps 30 --quit-after 90 tools/flame_test.tscn
 
 New audio/art files need an import pass before a headless run can `load()` them:
 

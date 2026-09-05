@@ -34,7 +34,8 @@ void fragment() {
 
 	// Fade along the length; only a light touch of silhouette softening so the cone still
 	// reads when seen end-on from the chase camera.
-	float edge = 0.55 + 0.45 * clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0);
+	// Seen along its axis (chase camera) the cone thins out so it never hides the hull.
+	float edge = 0.25 + 0.75 * clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0);
 	float body = pow(1.0 - along, 1.3);
 	float alpha = body * flicker * edge * intensity;
 

@@ -16,6 +16,7 @@ Game="*res://scripts/game.gd"
 Music="*res://scripts/music.gd"
 Sfx="*res://scripts/sfx.gd"
 Highscores="*res://scripts/highscores.gd"
+PerfOverlay="*res://scripts/perf_overlay.gd"
 
 [audio]
 
@@ -91,5 +92,7 @@ common/physics_ticks_per_second=120
 [rendering]
 
 renderer/rendering_method="forward_plus"
-anti_aliasing/quality/msaa_3d=2
+scaling_3d/mode=1
+scaling_3d/scale=0.6
 anti_aliasing/quality/screen_space_aa=1
+textures/default_filters/anisotropic_filtering_level=1

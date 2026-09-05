@@ -45,6 +45,10 @@ signal ship_hit(strength: float)
 @onready var engine_light: OmniLight3D = $EngineLight
 @onready var trail: GPUParticles3D = $Trail
 @onready var _engine_mat: StandardMaterial3D = $Body/EngineL.get_active_material(0)
+@onready var _flames: Array[Node3D] = [$Body/FlameL, $Body/FlameR]
+@onready var _cores: Array[MeshInstance3D] = [$Body/CoreL, $Body/CoreR]
+@onready var _jets: Array[GPUParticles3D] = [$Body/JetL, $Body/JetR]
+@onready var _flame_mat: ShaderMaterial = $Body/FlameL/FlameMeshL.mesh.material.duplicate()
 
 # --- Inputs, written by the driver
 var throttle_in := 0.0
@@ -74,6 +78,7 @@ var _up := Vector3.UP
 var _bank := 0.0
 var _pitch := 0.0
 var _throttle := 0.0
+var _boost_vis := 0.0
 var _last_wall_hit_ms := 0
 var _last_ship_hit_ms := 0
 
@@ -83,6 +88,9 @@ func _ready() -> void:
 	accent.albedo_color = team_color
 	for part in [$Body/Nose, $Body/FinL, $Body/FinR]:
 		part.material_override = accent
+	# Per-ship flame material so throttle drives each ship's own afterburner.
+	for flame in _flames:
+		flame.get_child(0).material_override = _flame_mat
 
 
 func respawn(at: Transform3D = spawn_transform) -> void:
@@ -94,6 +102,7 @@ func respawn(at: Transform3D = spawn_transform) -> void:
 
 func boost() -> void:
 	velocity += -global_transform.basis.z * boost_strength
+	_boost_vis = 1.0
 	boosted.emit()
 
 
@@ -193,7 +202,27 @@ func _update_visuals(lateral: float, delta: float) -> void:
 	_bank = lerpf(_bank, steer_in * bank_angle + lateral * 0.01, minf(8.0 * delta, 1.0))
 	_pitch = lerpf(_pitch, _throttle * pitch_angle, minf(5.0 * delta, 1.0))
 	body.rotation = Vector3(_pitch, 0.0, _bank)
-	var glow := 0.6 + _throttle * 3.0
+	_boost_vis *= exp(-1.8 * delta)
+	var glow := 0.6 + _throttle * 3.0 + _boost_vis * 2.0
 	_engine_mat.emission_energy_multiplier = glow
 	engine_light.light_energy = glow * 1.5
+	engine_light.light_color = Color(0.3, 0.9, 1.0).lerp(Color(0.7, 0.85, 1.0), _boost_vis)
 	trail.amount_ratio = clampf(speed / max_speed, 0.05, 1.0)
+	# Afterburner: length and brightness follow throttle, boost flares it out.
+	var length := 0.6 + _throttle * 2.2 + _boost_vis * 3.0
+	var width := 0.85 + _throttle * 0.25 + _boost_vis * 0.4
+	for flame in _flames:
+		flame.scale = Vector3(width, length, width)
+	_flame_mat.set_shader_parameter("intensity", 0.35 + _throttle * 0.9 + _boost_vis * 0.6)
+	_flame_mat.set_shader_parameter("boost", _boost_vis)
+	# Particle jet: density and reach follow throttle; boost throws it much further.
+	var jet_ratio := clampf(0.15 + _throttle * 0.85, 0.0, 1.0)
+	for jet in _jets:
+		jet.amount_ratio = jet_ratio
+		jet.lifetime = 0.12 + _throttle * 0.08 + _boost_vis * 0.12
+		jet.speed_scale = 1.0 + _boost_vis * 0.6
+	# Hot core disc at the nozzle: the part that reads from straight behind.
+	var core := 0.5 + _throttle * 0.6 + _boost_vis * 0.8
+	for c in _cores:
+		c.scale = Vector3.ONE * core
+		c.transparency = 0.0

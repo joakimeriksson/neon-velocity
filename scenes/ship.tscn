@@ -1,7 +1,8 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=32 format=3]
 
 [ext_resource type="Script" path="res://scripts/ship.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/engine_audio.gd" id="2"]
+[ext_resource type="Shader" path="res://shaders/afterburner.gdshader" id="3"]
 
 [sub_resource type="BoxShape3D" id="shape"]
 size = Vector3(2.4, 0.8, 4.6)
@@ -45,8 +46,8 @@ bottom_radius = 0.38
 height = 0.4
 
 [sub_resource type="Gradient" id="fade_grad"]
-offsets = PackedFloat32Array(0, 0.2, 1)
-colors = PackedColorArray(1, 1, 1, 0, 0.3, 0.9, 1, 0.7, 0.3, 0.9, 1, 0)
+offsets = PackedFloat32Array(0, 0.12, 0.4, 0.7, 1)
+colors = PackedColorArray(0.8, 0.95, 1, 0, 0.6, 0.85, 1, 0.8, 0.8, 0.35, 1, 0.5, 1, 0.35, 0.05, 0.3, 1, 0.1, 0, 0)
 
 [sub_resource type="GradientTexture1D" id="fade_tex"]
 gradient = SubResource("fade_grad")
@@ -78,13 +79,98 @@ transparency = 1
 blend_mode = 1
 shading_mode = 0
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.3, 0.9, 1, 1)
+albedo_color = Color(1, 1, 1, 1)
 albedo_texture = SubResource("soft_tex")
 billboard_mode = 3
 
 [sub_resource type="QuadMesh" id="trail_quad"]
 material = SubResource("trail_mat")
 size = Vector2(0.6, 0.6)
+
+[sub_resource type="FastNoiseLite" id="flame_noise"]
+frequency = 0.08
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="flame_noise_tex"]
+seamless = true
+noise = SubResource("flame_noise")
+
+[sub_resource type="ShaderMaterial" id="flame_mat"]
+render_priority = 1
+shader = ExtResource("3")
+shader_parameter/intensity = 1.0
+shader_parameter/boost = 0.0
+shader_parameter/noise = SubResource("flame_noise_tex")
+
+[sub_resource type="CylinderMesh" id="flame_mesh"]
+material = SubResource("flame_mat")
+top_radius = 0.04
+bottom_radius = 0.36
+height = 1.0
+radial_segments = 24
+rings = 8
+cap_top = false
+cap_bottom = true
+
+[sub_resource type="StandardMaterial3D" id="core_mat"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.55, 0.85, 1, 1)
+albedo_texture = SubResource("soft_tex")
+emission_enabled = true
+emission = Color(0.55, 0.85, 1, 1)
+emission_energy_multiplier = 1.6
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="core_quad"]
+material = SubResource("core_mat")
+size = Vector2(1.1, 1.1)
+
+[sub_resource type="Gradient" id="jet_grad"]
+offsets = PackedFloat32Array(0, 0.18, 0.45, 0.75, 1)
+colors = PackedColorArray(0.75, 0.9, 1, 0.85, 0.5, 0.6, 1, 0.6, 0.8, 0.3, 1, 0.4, 1, 0.3, 0.05, 0.22, 1, 0.1, 0, 0)
+
+[sub_resource type="GradientTexture1D" id="jet_grad_tex"]
+gradient = SubResource("jet_grad")
+
+[sub_resource type="Curve" id="jet_scale_curve"]
+_data = [Vector2(0, 0.9), 0.0, -1.2, 0, 0, Vector2(1, 0.15), -0.6, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="jet_scale_tex"]
+curve = SubResource("jet_scale_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="jet_pm"]
+emission_shape = 1
+emission_sphere_radius = 0.22
+direction = Vector3(0, 0, 1)
+spread = 6.0
+initial_velocity_min = 11.0
+initial_velocity_max = 16.0
+gravity = Vector3(0, 0, 0)
+damping_min = 12.0
+damping_max = 18.0
+scale_min = 0.35
+scale_max = 0.55
+scale_curve = SubResource("jet_scale_tex")
+color_ramp = SubResource("jet_grad_tex")
+
+[sub_resource type="StandardMaterial3D" id="jet_mat"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 1, 1, 0.55)
+albedo_texture = SubResource("soft_tex")
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 0.7
+billboard_mode = 3
+
+[sub_resource type="QuadMesh" id="jet_quad"]
+material = SubResource("jet_mat")
+size = Vector2(0.7, 0.7)
 
 [node name="Ship" type="CharacterBody3D"]
 motion_mode = 1
@@ -133,6 +219,48 @@ material_override = SubResource("engine_mat")
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.65, 0, 2.3)
 mesh = SubResource("engine_mesh")
 material_override = SubResource("engine_mat")
+
+[node name="FlameL" type="Node3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.65, 0, 2.5)
+
+[node name="FlameMeshL" type="MeshInstance3D" parent="Body/FlameL"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("flame_mesh")
+cast_shadow = 0
+
+[node name="CoreL" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.65, 0, 2.55)
+mesh = SubResource("core_quad")
+cast_shadow = 0
+
+[node name="CoreR" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 0, 2.55)
+mesh = SubResource("core_quad")
+cast_shadow = 0
+
+[node name="FlameR" type="Node3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.65, 0, 2.5)
+
+[node name="FlameMeshR" type="MeshInstance3D" parent="Body/FlameR"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("flame_mesh")
+cast_shadow = 0
+
+[node name="JetL" type="GPUParticles3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.65, 0, 2.5)
+amount = 160
+lifetime = 0.16
+local_coords = true
+process_material = SubResource("jet_pm")
+draw_pass_1 = SubResource("jet_quad")
+
+[node name="JetR" type="GPUParticles3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 0, 2.5)
+amount = 160
+lifetime = 0.16
+local_coords = true
+process_material = SubResource("jet_pm")
+draw_pass_1 = SubResource("jet_quad")
 
 [node name="EngineLight" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)

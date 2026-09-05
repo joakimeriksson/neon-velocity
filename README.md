@@ -87,3 +87,9 @@ Four of the seven music tracks are excluded to keep the download near 55 MB.
     python3 tools/serve_web.py 8060      # then open http://127.0.0.1:8060/index.html
 
 Export templates for 4.7.2 must be installed first (`~/Library/Application Support/Godot/export_templates/4.7.2.stable/`).
+
+## License
+
+Code is MIT licensed (see `LICENSE`). The ship models, logo and soundtrack were generated with AI
+tools for this project; they are included so the game runs as-is, but treat them as project assets
+rather than a reusable asset pack.

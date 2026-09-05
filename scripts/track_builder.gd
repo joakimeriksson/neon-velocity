@@ -353,8 +353,8 @@ func _add_track_lights() -> void:
 			add_child(lamp)
 			var light := OmniLight3D.new()
 			light.light_color = light_color
-			light.light_energy = 2.5
-			light.omni_range = 34.0
+			light.light_energy = 4.0
+			light.omni_range = 40.0
 			light.omni_attenuation = 1.3
 			light.position = base + f.basis.y * 6.6 - f.basis.x * side * 1.5
 			add_child(light)

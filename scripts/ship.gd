@@ -203,7 +203,7 @@ func _update_visuals(lateral: float, delta: float) -> void:
 	_pitch = lerpf(_pitch, _throttle * pitch_angle, minf(5.0 * delta, 1.0))
 	body.rotation = Vector3(_pitch, 0.0, _bank)
 	_boost_vis *= exp(-1.8 * delta)
-	var glow := 0.6 + _throttle * 3.0 + _boost_vis * 2.0
+	var glow := 0.4 + _throttle * 1.4 + _boost_vis * 1.5
 	_engine_mat.emission_energy_multiplier = glow
 	engine_light.light_energy = glow * 1.5
 	engine_light.light_color = Color(0.3, 0.9, 1.0).lerp(Color(0.7, 0.85, 1.0), _boost_vis)

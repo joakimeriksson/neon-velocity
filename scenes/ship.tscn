@@ -9,13 +9,13 @@ size = Vector3(2.4, 0.8, 4.6)
 
 [sub_resource type="StandardMaterial3D" id="hull_mat"]
 albedo_color = Color(0.85, 0.87, 0.9, 1)
-metallic = 0.7
-roughness = 0.3
+metallic = 0.3
+roughness = 0.45
 
 [sub_resource type="StandardMaterial3D" id="accent_mat"]
 albedo_color = Color(0.9, 0.2, 0.3, 1)
-metallic = 0.4
-roughness = 0.4
+metallic = 0.15
+roughness = 0.5
 
 [sub_resource type="StandardMaterial3D" id="glass_mat"]
 albedo_color = Color(0.05, 0.1, 0.15, 1)
@@ -261,6 +261,15 @@ lifetime = 0.16
 local_coords = true
 process_material = SubResource("jet_pm")
 draw_pass_1 = SubResource("jet_quad")
+
+[node name="Headlight" type="SpotLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.98, 0.2, 0, -0.2, 0.98, 0, 0.3, -3.2)
+light_color = Color(0.85, 0.92, 1, 1)
+light_energy = 4.0
+spot_range = 70.0
+spot_angle = 32.0
+spot_attenuation = 0.8
+shadow_enabled = false
 
 [node name="EngineLight" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)

@@ -21,6 +21,14 @@ func shake(amount: float) -> void:
 
 
 func _ready() -> void:
+	# Soft fill from the camera so the followed ship's hull always reads, whatever the scene lighting.
+	var fill := OmniLight3D.new()
+	fill.light_color = Color(0.8, 0.85, 1.0)
+	fill.light_energy = 0.9
+	fill.omni_range = 16.0
+	fill.omni_attenuation = 1.5
+	fill.shadow_enabled = false
+	add_child(fill)
 	if target:
 		_snap()
 

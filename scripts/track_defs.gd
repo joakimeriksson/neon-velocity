@@ -11,7 +11,7 @@ class_name TrackDefs
 const NIGHT_RAIN := {
 	"sky_top": Color(0.03, 0.03, 0.06), "sky_horizon": Color(0.42, 0.2, 0.1),
 	"sun_color": Color(0.55, 0.65, 0.9), "sun_energy": 0.35, "sun_rotation": Vector3(-35, 40, 0),
-	"ambient": 0.35, "fog_color": Color(0.4, 0.2, 0.12), "fog_density": 0.0035,
+	"ambient": 0.45, "fog_color": Color(0.4, 0.2, 0.12), "fog_density": 0.0035,
 	"vol_fog": 0.016, "vol_fog_albedo": Color(0.7, 0.55, 0.5), "vol_fog_emission": Color(0.3, 0.13, 0.06),
 	"rain": true, "window_lit": 1.0, "exposure": 1.0,
 }

@@ -15,7 +15,8 @@ import os
 import time
 from pathlib import Path
 
-# ACE-Step is a text-to-music model; "[inst]" is its instrumental marker.
+# ACE-Step takes lyrics alongside the tags. "[inst]" is its instrumental marker;
+# a track with a "lyrics" field in the spec gets sung/chanted vocals instead.
 INSTRUMENTAL = "[inst]"
 
 
@@ -81,7 +82,9 @@ def main() -> int:
 
         duration = args.duration or track.get("duration", defaults.get("duration", 180))
         steps = args.infer_step or track.get("infer_step", defaults.get("infer_step", 60))
-        print(f"\n=== {track['name']}  {duration:.0f}s  seed={track['seed']}  steps={steps}", flush=True)
+        lyrics = track.get("lyrics") or INSTRUMENTAL
+        vocal = "vocal" if lyrics != INSTRUMENTAL else "instrumental"
+        print(f"\n=== {track['name']}  {duration:.0f}s  seed={track['seed']}  steps={steps}  {vocal}", flush=True)
         print(f"    {track['tags']}", flush=True)
 
         t0 = time.time()
@@ -89,7 +92,7 @@ def main() -> int:
             format="wav",
             audio_duration=float(duration),
             prompt=track["tags"],
-            lyrics=INSTRUMENTAL,
+            lyrics=lyrics,
             infer_step=steps,
             guidance_scale=track.get("guidance_scale", defaults.get("guidance_scale", 15.0)),
             scheduler_type=track.get("scheduler_type", defaults.get("scheduler_type", "euler")),

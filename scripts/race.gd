@@ -37,11 +37,11 @@ func _ready() -> void:
 	var grid := track.get_grid_transforms(ai_count + 1)
 	# Pole is the fastest AI; the player starts at the back.
 	for i in ai_count:
-		var ship := _spawn_ship(grid[i], AI_NAMES[i % AI_NAMES.size()], AI_COLORS[i % AI_COLORS.size()])
+		var ship := _spawn_ship(grid[i], AI_NAMES[i % AI_NAMES.size()], AI_COLORS[i % AI_COLORS.size()], "ai_%d" % i)
 		var driver := AIDriver.new()
 		ship.add_child(driver)
 		driver.setup(track, 1.0 - 0.04 * i, (-1.0 if i % 2 == 0 else 1.0) * 3.0)
-	player = _spawn_ship(grid[ai_count], "You", Color(0.9, 0.2, 0.3))
+	player = _spawn_ship(grid[ai_count], "You", Color(0.9, 0.2, 0.3), "player")
 	player.is_player = true
 	if OS.has_environment("AG_AUTOPILOT") or Game.attract:
 		var driver := AIDriver.new()
@@ -75,6 +75,14 @@ func _ready() -> void:
 		add_child(_pause)
 
 
+## models/ships/<name>.glb, falling back to ai.glb for AI ships, else the placeholder hull.
+static func _find_model(name: String) -> String:
+	for candidate in [name, "ai" if name.begins_with("ai_") else ""]:
+		if candidate != "" and ResourceLoader.exists("res://models/ships/%s.glb" % candidate):
+			return "res://models/ships/%s.glb" % candidate
+	return ""
+
+
 ## Time of day: sky, sun, fog from the circuit's env preset.
 func _apply_environment(env: Dictionary) -> void:
 	var e: Environment = $WorldEnvironment.environment
@@ -95,10 +103,11 @@ func _apply_environment(env: Dictionary) -> void:
 	sun.rotation_degrees = env.sun_rotation
 
 
-func _spawn_ship(at: Transform3D, ship_name: String, color: Color) -> Ship:
+func _spawn_ship(at: Transform3D, ship_name: String, color: Color, model := "") -> Ship:
 	var ship: Ship = ship_scene.instantiate()
 	ship.team_color = color
 	ship.ship_name = ship_name
+	ship.model_path = _find_model(model)
 	add_child(ship)
 	ship.spawn_transform = at
 	ship.respawn()

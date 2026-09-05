@@ -37,6 +37,8 @@ signal ship_hit(strength: float)
 
 @export_group("Visual")
 @export var team_color := Color(0.9, 0.2, 0.3)
+## Optional .glb hull (see models/ships/README.md). Empty = placeholder box hull.
+@export_file("*.glb") var model_path := ""
 @export var bank_angle := 0.55
 @export var pitch_angle := 0.08
 
@@ -88,9 +90,42 @@ func _ready() -> void:
 	accent.albedo_color = team_color
 	for part in [$Body/Nose, $Body/FinL, $Body/FinR]:
 		part.material_override = accent
+	if model_path != "" and ResourceLoader.exists(model_path):
+		_install_model(model_path)
 	# Per-ship flame material so throttle drives each ship's own afterburner.
 	for flame in _flames:
 		flame.get_child(0).material_override = _flame_mat
+
+
+## Swap the placeholder hull for an imported model: hide the box parts, tint "Accent"
+## materials with the team colour, and move exhausts/headlight to the model's named empties.
+func _install_model(path: String) -> void:
+	var scene: PackedScene = load(path)
+	if scene == null:
+		return
+	var model: Node3D = scene.instantiate()
+	for part in [$Body/Hull, $Body/Nose, $Body/Canopy, $Body/FinL, $Body/FinR, $Body/EngineL, $Body/EngineR]:
+		part.visible = false
+	body.add_child(model)
+	for mesh in model.find_children("*", "MeshInstance3D", true, false):
+		for i in mesh.get_surface_override_material_count():
+			var mat: Material = mesh.get_active_material(i)
+			if mat and "accent" in mat.resource_name.to_lower():
+				var tinted: Material = mat.duplicate()
+				if tinted is BaseMaterial3D:
+					tinted.albedo_color = team_color
+				mesh.set_surface_override_material(i, tinted)
+	var sockets := {"EngineL": [$Body/FlameL, $Body/CoreL, $Body/JetL], "EngineR": [$Body/FlameR, $Body/CoreR, $Body/JetR]}
+	for socket_name in sockets:
+		var socket: Node3D = model.find_child(socket_name, true, false)
+		if socket:
+			for node in sockets[socket_name]:
+				var keep_basis: Basis = node.transform.basis
+				node.position = body.to_local(socket.global_position)
+				node.transform.basis = keep_basis
+	var head: Node3D = model.find_child("Headlight", true, false)
+	if head:
+		$Headlight.position = to_local(head.global_position)
 
 
 func respawn(at: Transform3D = spawn_transform) -> void:

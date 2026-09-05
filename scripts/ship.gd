@@ -40,7 +40,8 @@ signal ship_hit(strength: float)
 ## Optional .glb hull (see models/ships/README.md). Empty = placeholder box hull.
 @export_file("*.glb") var model_path := ""
 @export var bank_angle := 0.55
-@export var pitch_angle := 0.08
+@export var pitch_angle := 0.018    ## nose-up under thrust (radians)
+@export var brake_dip := 0.03       ## nose-down while braking
 
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var body: Node3D = $Body
@@ -235,7 +236,7 @@ func _physics_process(delta: float) -> void:
 func _update_visuals(lateral: float, delta: float) -> void:
 	# Roll into the turn, plus a bit extra when sliding sideways.
 	_bank = lerpf(_bank, steer_in * bank_angle + lateral * 0.01, minf(8.0 * delta, 1.0))
-	_pitch = lerpf(_pitch, _throttle * pitch_angle, minf(5.0 * delta, 1.0))
+	_pitch = lerpf(_pitch, _throttle * pitch_angle - brake_in * brake_dip, minf(5.0 * delta, 1.0))
 	body.rotation = Vector3(_pitch, 0.0, _bank)
 	_boost_vis *= exp(-1.8 * delta)
 	var glow := 0.4 + _throttle * 1.4 + _boost_vis * 1.5

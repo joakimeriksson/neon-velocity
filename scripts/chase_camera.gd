@@ -4,10 +4,10 @@ extends Camera3D
 ## (so it rolls with banked track), looks a little ahead, and widens the FOV with speed.
 
 @export var target: Ship
-@export var distance := 9.0
-@export var height := 3.6
-@export var look_ahead := 7.5
-@export var follow_speed := 9.0
+@export var distance := 8.5
+@export var height := 2.8
+@export var look_ahead := 10.0
+@export var follow_speed := 11.0
 @export var base_fov := 75.0
 @export var speed_fov := 20.0
 @export var shake_strength := 0.7

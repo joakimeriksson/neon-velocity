@@ -8,6 +8,7 @@ extends CharacterBody3D
 ## Inputs are written each tick by a driver child (PlayerDriver or AIDriver).
 
 signal boosted
+signal pad_passed   ## crossed a boost pad's zone (hit or near miss)
 signal wall_hit(strength: float)
 signal ship_hit(strength: float)
 
@@ -94,6 +95,10 @@ func respawn(at: Transform3D = spawn_transform) -> void:
 func boost() -> void:
 	velocity += -global_transform.basis.z * boost_strength
 	boosted.emit()
+
+
+func pad_near() -> void:
+	pad_passed.emit()
 
 
 func _physics_process(delta: float) -> void:

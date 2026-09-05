@@ -275,20 +275,32 @@ func _add_boost_pads() -> void:
 		_add_mesh(st.commit(), _boost_mat, false)
 
 		var mid := frames[(start + pad_frames / 2) % n]
-		var area := Area3D.new()
-		var shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = Vector3(track_width * 0.8, 4.0, boost_pad_length)
-		shape.shape = box
-		area.add_child(shape)
-		area.transform = Transform3D(mid.basis, mid.origin + mid.basis.y * 1.5)
-		area.body_entered.connect(_on_boost_pad_entered)
-		add_child(area)
+		# Two triggers: the painted pad itself boosts; a wider zone around it only counts as
+		# a near miss (whoosh, no boost). The pad mesh spans 40% of the track width.
+		_add_pad_area(mid, track_width * 0.4, _on_boost_pad_entered)
+		_add_pad_area(mid, track_width * 0.95, _on_boost_pad_near)
+
+
+func _add_pad_area(frame: Transform3D, width: float, handler: Callable) -> void:
+	var area := Area3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(width, 4.0, boost_pad_length)
+	shape.shape = box
+	area.add_child(shape)
+	area.transform = Transform3D(frame.basis, frame.origin + frame.basis.y * 1.5)
+	area.body_entered.connect(handler)
+	add_child(area)
 
 
 func _on_boost_pad_entered(body: Node3D) -> void:
 	if body is Ship:
 		body.boost()
+
+
+func _on_boost_pad_near(body: Node3D) -> void:
+	if body is Ship:
+		body.pad_near()
 
 
 func _add_void_floor() -> void:

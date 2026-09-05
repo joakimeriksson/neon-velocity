@@ -7,4 +7,6 @@ SYNTH="${GAMESYNTH_DIR:-$HERE/../gamesynth}"
 mkdir -p "$HERE/addons/gamesynth/bin"
 cp "$SYNTH"/target/release/libgamesynth_godot.{dylib,so} "$HERE/addons/gamesynth/bin/" 2>/dev/null || true
 cp "$SYNTH"/target/release/gamesynth_godot.dll "$HERE/addons/gamesynth/bin/" 2>/dev/null || true
+# Web build too (needs emsdk + pinned nightly, see gamesynth/tools/build-wasm.sh); skipped if it fails.
+(cd "$SYNTH" && tools/build-wasm.sh) && cp "$SYNTH/target/wasm32-unknown-emscripten/release/gamesynth_godot.wasm" "$HERE/addons/gamesynth/bin/" || echo "wasm build skipped"
 ls -la "$HERE/addons/gamesynth/bin"

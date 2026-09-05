@@ -48,6 +48,7 @@ func play(name: String, pitch := 1.0, db := 0.0) -> void:
 		return
 	var p := AudioStreamPlayer.new()
 	p.bus = &"SFX"
+	p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM  # synthesised streams can't be browser samples
 	p.stream = stream
 	p.pitch_scale = pitch
 	p.volume_db = volume_db + db
@@ -63,6 +64,7 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size
 		return
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"SFX"
+	p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM  # synthesised streams can't be browser samples
 	p.stream = stream
 	p.pitch_scale = pitch
 	p.volume_db = volume_db + db

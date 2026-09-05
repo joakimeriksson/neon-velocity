@@ -43,6 +43,8 @@ binary into `addons/gamesynth/bin/`. With it loaded:
   crunchy wall strike, clank, ticks, chimes). Tune the parameter dictionaries there; the sfxr-style random
   presets were too arcade for this game. `scripts/sfx.gd` still synthesises WAV fallbacks without the extension.
 
+The extension also builds to WebAssembly for the web export (single-threaded, `nothreads` feature).
+
 Stage 1 files still take priority wherever they exist, so rendered loops or samples can replace any layer.
 
 Original Stage 2 design notes (kept for reference):

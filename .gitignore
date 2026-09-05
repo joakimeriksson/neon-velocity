@@ -2,7 +2,8 @@
 export/
 tools/music/raw/
 out/
-addons/gamesynth/bin/
+addons/gamesynth/bin/*
+!addons/gamesynth/bin/gamesynth_godot.wasm
 .DS_Store
 build/
 tools/music/previews/

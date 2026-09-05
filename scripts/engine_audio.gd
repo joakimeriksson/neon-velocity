@@ -167,6 +167,8 @@ func _set_gain(player: AudioStreamPlayer3D, linear: float) -> void:
 
 
 func _configure_3d(p: AudioStreamPlayer3D) -> void:
+	# Web builds play audio as browser samples by default; synthesised streams must be mixed.
+	p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
 	# Route to SFX so engine noise and music have separate faders.
 	if AudioServer.get_bus_index("SFX") >= 0:
 		p.bus = &"SFX"

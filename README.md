@@ -80,7 +80,9 @@ Regenerate the soundtrack:
 Exports with the `Web` preset in `export_presets.cfg` (single-threaded, so it runs on any static host,
 GitHub Pages included). The web platform uses the Compatibility renderer, so volumetric fog, SSR and FSR
 are absent there; `project.godot` carries `.web` overrides for the settings that only exist in Forward+.
-The gamesynth extension has no WASM build yet, so the web version uses the built-in engine loops and SFX.
+The gamesynth extension is included as WebAssembly (`addons/gamesynth/bin/gamesynth_godot.wasm`, tracked in git so CI can
+use it; rebuild with `tools/sync_gamesynth.sh`, which needs emsdk 4.0.20 and a pinned Rust nightly, see gamesynth/tools/build-wasm.sh).
+Synth players use streamed playback because web builds play audio as browser samples by default.
 All music tracks are included in the web build.
 
     godot --headless --path . --export-release "Web" build/web/index.html

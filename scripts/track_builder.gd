@@ -20,6 +20,8 @@ extends Node3D
 
 var control_points: Array[Vector3] = []
 var neon_color := Color(0.1, 0.9, 1.0)
+var light_color := Color(0.8, 0.9, 1.0)
+var lit_sections: Array = []   # [[start_fraction, end_fraction], ...]
 
 var frames: Array[Transform3D] = []
 
@@ -42,6 +44,8 @@ func load_def(def: Dictionary) -> void:
 	track_width = def.get("width", 18.0)
 	bank_strength = def.get("bank_strength", 22.0)
 	neon_color = def.get("neon", neon_color)
+	light_color = def.get("light_color", light_color)
+	lit_sections = def.get("lit_sections", [])
 	boost_pad_positions.assign(def.get("boost_pads", [0.12, 0.38, 0.6, 0.83]))
 	build()
 
@@ -59,6 +63,7 @@ func build() -> void:
 	_add_mesh(_build_strips(), _strip_mat, false)
 	_add_mesh(_build_start_line(), _start_mat, false)
 	_add_boost_pads()
+	_add_track_lights()
 	_add_void_floor()
 
 
@@ -301,6 +306,82 @@ func _on_boost_pad_entered(body: Node3D) -> void:
 func _on_boost_pad_near(body: Node3D) -> void:
 	if body is Ship:
 		body.pad_near()
+
+
+## Artificial lighting along `lit_sections`: lamp poles on alternating sides every 24 m,
+## and a light gantry across the track at the start of each section.
+func _add_track_lights() -> void:
+	var n := frames.size()
+	var pole_spacing := int(24.0 / step)
+	var lamp_mat := StandardMaterial3D.new()
+	lamp_mat.albedo_color = light_color
+	lamp_mat.emission_enabled = true
+	lamp_mat.emission = light_color
+	lamp_mat.emission_energy_multiplier = 4.0
+	var pole_mat := StandardMaterial3D.new()
+	pole_mat.albedo_color = Color(0.2, 0.2, 0.22)
+	pole_mat.metallic = 0.6
+	pole_mat.roughness = 0.5
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = 0.12
+	pole_mesh.bottom_radius = 0.18
+	pole_mesh.height = 7.0
+	var lamp_mesh := BoxMesh.new()
+	lamp_mesh.size = Vector3(0.5, 0.25, 1.4)
+	var gantry_mesh := BoxMesh.new()
+	gantry_mesh.size = Vector3(1.0, 0.35, 0.35)
+	var k := 0
+	for section in lit_sections:
+		var start := int(section[0] * n)
+		var end := int(section[1] * n)
+		_add_gantry(frames[start % n], gantry_mesh, lamp_mat, pole_mesh, pole_mat)
+		var i := start
+		while i < end:
+			var f := frames[i % n]
+			var side := -1.0 if k % 2 == 0 else 1.0
+			k += 1
+			var base := f.origin + f.basis.x * side * (track_width * 0.5 + 0.6)
+			var pole := MeshInstance3D.new()
+			pole.mesh = pole_mesh
+			pole.material_override = pole_mat
+			pole.transform = Transform3D(f.basis, base + f.basis.y * 3.5)
+			add_child(pole)
+			var lamp := MeshInstance3D.new()
+			lamp.mesh = lamp_mesh
+			lamp.material_override = lamp_mat
+			lamp.transform = Transform3D(f.basis, base + f.basis.y * 7.0 - f.basis.x * side * 1.0)
+			add_child(lamp)
+			var light := OmniLight3D.new()
+			light.light_color = light_color
+			light.light_energy = 2.5
+			light.omni_range = 34.0
+			light.omni_attenuation = 1.3
+			light.position = base + f.basis.y * 6.6 - f.basis.x * side * 1.5
+			add_child(light)
+			i += pole_spacing
+
+
+func _add_gantry(f: Transform3D, beam_mesh: Mesh, lamp_mat: Material, pole_mesh: Mesh, pole_mat: Material) -> void:
+	var height := 7.5
+	var beam := MeshInstance3D.new()
+	beam.mesh = beam_mesh
+	beam.material_override = lamp_mat
+	# Scale the beam along the track's own right vector, not the world X axis.
+	beam.transform = Transform3D(Basis(f.basis.x * (track_width + 2.0), f.basis.y, f.basis.z), f.origin + f.basis.y * height)
+	add_child(beam)
+	for side in [-1.0, 1.0]:
+		var pole := MeshInstance3D.new()
+		pole.mesh = pole_mesh
+		pole.material_override = pole_mat
+		pole.transform = Transform3D(f.basis, f.origin + f.basis.x * side * (track_width * 0.5 + 0.6) + f.basis.y * 3.75)
+		add_child(pole)
+	var light := OmniLight3D.new()
+	light.light_color = light_color
+	light.light_energy = 5.0
+	light.omni_range = 45.0
+	light.omni_attenuation = 1.2
+	light.position = f.origin + f.basis.y * (height - 0.6)
+	add_child(light)
 
 
 func _add_void_floor() -> void:

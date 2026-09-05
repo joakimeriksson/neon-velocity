@@ -31,8 +31,9 @@ var _player_finish_time := 0.0
 
 func _ready() -> void:
 	var def := TrackDefs.ALL[Game.track_index]
+	_apply_environment(def.get("env", TrackDefs.NIGHT_RAIN))
 	track.load_def(def)
-	city.build(track, camera)
+	city.build(track, camera, def.get("env", TrackDefs.NIGHT_RAIN))
 	var grid := track.get_grid_transforms(ai_count + 1)
 	# Pole is the fastest AI; the player starts at the back.
 	for i in ai_count:
@@ -72,6 +73,26 @@ func _ready() -> void:
 	else:
 		_pause = PauseMenu.new()
 		add_child(_pause)
+
+
+## Time of day: sky, sun, fog from the circuit's env preset.
+func _apply_environment(env: Dictionary) -> void:
+	var e: Environment = $WorldEnvironment.environment
+	var sky_mat: ProceduralSkyMaterial = e.sky.sky_material
+	sky_mat.sky_top_color = env.sky_top
+	sky_mat.sky_horizon_color = env.sky_horizon
+	sky_mat.ground_horizon_color = env.sky_horizon
+	e.ambient_light_energy = env.ambient
+	e.fog_light_color = env.fog_color
+	e.fog_density = env.fog_density
+	e.volumetric_fog_density = env.vol_fog
+	e.volumetric_fog_albedo = env.vol_fog_albedo
+	e.volumetric_fog_emission = env.vol_fog_emission
+	e.tonemap_exposure = env.exposure
+	var sun: DirectionalLight3D = $Sun
+	sun.light_color = env.sun_color
+	sun.light_energy = env.sun_energy
+	sun.rotation_degrees = env.sun_rotation
 
 
 func _spawn_ship(at: Transform3D, ship_name: String, color: Color) -> Ship:

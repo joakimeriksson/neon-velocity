@@ -32,7 +32,11 @@ var _searchlights: Array[SpotLight3D] = []
 var _beam_angles: Array[float] = []
 
 
-func build(track: TrackBuilder, camera: Node3D) -> void:
+var _env := {}
+
+
+func build(track: TrackBuilder, camera: Node3D, env := {}) -> void:
+	_env = env
 	for child in get_children():
 		remove_child(child)
 		child.free()
@@ -182,7 +186,7 @@ func _add_building_mesh() -> void:
 		var b := _buildings[i]
 		mm.set_instance_transform(i, Transform3D(_building_basis(b), b.pos))
 		mm.set_instance_color(i, b.tint)
-		mm.set_instance_custom_data(i, Color(b.seed, b.lit, 0.0, 0.0))
+		mm.set_instance_custom_data(i, Color(b.seed, b.lit * _env.get("window_lit", 1.0), 0.0, 0.0))
 
 	var noise := FastNoiseLite.new()
 	noise.seed = rng_seed
@@ -330,6 +334,8 @@ func _add_rain(camera: Node3D) -> void:
 	for old in camera.get_children():
 		if old.name == "Rain":
 			old.queue_free()
+	if not _env.get("rain", true):
+		return
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	pm.emission_box_extents = Vector3(40, 18, 40)

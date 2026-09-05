@@ -150,7 +150,7 @@ func _whoosh() -> AudioStreamWAV:
 
 ## Wall strike: bright crunchy noise burst, inharmonic metallic ring-out, low thud, soft-clipped.
 func _impact() -> AudioStreamWAV:
-	var seconds := 0.55
+	var seconds := 0.7
 	var n := int(RATE * seconds)
 	var out := PackedFloat32Array()
 	out.resize(n)
@@ -167,16 +167,16 @@ func _impact() -> AudioStreamWAV:
 		var a := 1.0 - exp(-TAU * cutoff / RATE)
 		lp += a * (white - lp)
 		hp += a_hp * (lp - hp)
-		var crunch := (lp - hp) * 3.0 * exp(-16.0 * t)
+		var crunch := (lp - hp) * 4.0 * exp(-14.0 * t)
 		var ring := 0.0
 		for k in partials.size():
 			ring += amps[k] * sin(TAU * partials[k] * t * (1.0 + 0.002 * sin(t * 30.0)))
 		ring *= 0.35 * exp(-9.0 * t)
-		var freq := 90.0 * exp(-10.0 * t) + 45.0
+		var freq := 110.0 * exp(-9.0 * t) + 42.0
 		phase += freq / RATE
-		var thud := sin(TAU * phase) * exp(-11.0 * t) * 0.9
+		var thud := sin(TAU * phase) * exp(-7.0 * t) * 1.4
 		var mixv := (crunch + ring + thud) * minf(t * 600.0, 1.0)
-		out[i] = tanh(mixv * 2.2)
+		out[i] = tanh(mixv * 2.4)
 	return _to_wav(out)
 
 

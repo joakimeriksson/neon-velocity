@@ -55,6 +55,7 @@ var controls_enabled := false
 
 # --- Race state, maintained by Race
 var ship_name := "Ship"
+var is_player := false
 var lap := 0
 var progress := 0.0
 var lap_time := 0.0

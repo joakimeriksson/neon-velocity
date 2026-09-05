@@ -35,6 +35,7 @@ var _impact: AudioStreamPlayer3D
 var _jet: AudioStreamPlayer3D
 var _jet_pb  # JetEnginePlayback (extension class, so untyped)
 var _damage := 0.0
+var _duck := 0.0   ## engine dip right after an impact so the hit punches through
 
 var _throttle := 0.0
 var _hiss_gain := 0.0
@@ -52,7 +53,12 @@ func _ready() -> void:
 		return
 	ship.boosted.connect(_on_boost)
 	ship.wall_hit.connect(_on_wall_hit)
-	ship.ship_hit.connect(func(strength: float): Sfx.play_at("ship_hit", ship.global_position, 0.9 + strength * 0.3, -8.0 + strength * 10.0))
+	ship.ship_hit.connect(func(strength: float):
+		_duck = maxf(_duck, 0.6)
+		if ship.is_player:
+			Sfx.play("ship_hit", 0.9 + strength * 0.3, 0.0 + strength * 8.0)
+		else:
+			Sfx.play_at("ship_hit", ship.global_position, 0.9 + strength * 0.3, -8.0 + strength * 10.0))
 	# Airbrake hiss stays a loop in both modes; the jet has no airbrake layer.
 	_hiss = _make_player("exhaust_high", _gen_noise_high)
 	_scrape = _make_player("scrape", _gen_scrape)
@@ -87,10 +93,12 @@ func _process(delta: float) -> void:
 	_scrape.pitch_scale = 0.8 + speed_ratio * 0.6
 	_set_gain(_scrape, _scrape_gain * (0.2 + speed_ratio * 0.7))
 
+	_duck *= exp(-5.0 * delta)
 	if _jet_pb:
 		if not _jet.playing:
 			_jet.play()
 			_jet_pb = _jet.get_stream_playback()
+		_jet.volume_db = master_db - 14.0 * _duck
 		# The engine has its own spool inertia, so it gets the raw throttle.
 		_jet_pb.set_state(ship.throttle_in, _boost_env, minf(speed_ratio, 1.0), _damage)
 		return
@@ -125,7 +133,12 @@ func _on_boost() -> void:
 
 func _on_wall_hit(strength: float) -> void:
 	_damage = minf(_damage + strength * damage_per_hit, 1.0)
-	Sfx.play_at("wall_hit", ship.global_position, 0.85 + strength * 0.3, -6.0 + strength * 10.0)
+	_duck = 1.0
+	if ship.is_player:
+		# The player's own hit: straight to the mix, loud, no distance falloff.
+		Sfx.play("wall_hit", 0.85 + strength * 0.3, 4.0 + strength * 6.0)
+	else:
+		Sfx.play_at("wall_hit", ship.global_position, 0.85 + strength * 0.3, -6.0 + strength * 10.0)
 	if _impact:
 		_impact_env = clampf(strength * 1.2, 0.2, 1.0)
 		_impact.pitch_scale = 0.6

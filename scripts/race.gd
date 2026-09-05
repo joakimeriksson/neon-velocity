@@ -41,6 +41,7 @@ func _ready() -> void:
 		ship.add_child(driver)
 		driver.setup(track, 1.0 - 0.04 * i, (-1.0 if i % 2 == 0 else 1.0) * 3.0)
 	player = _spawn_ship(grid[ai_count], "You", Color(0.9, 0.2, 0.3))
+	player.is_player = true
 	if OS.has_environment("AG_AUTOPILOT") or Game.attract:
 		var driver := AIDriver.new()
 		player.add_child(driver)

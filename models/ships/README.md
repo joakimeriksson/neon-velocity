@@ -18,8 +18,8 @@ with it and attaches exhausts, lights and collision automatically.
   - `Headlight` — where the forward light sits.
   - `Cockpit` — for a future cockpit camera.
   Without them, defaults are used: engines at (±0.65, 0, 2.3).
-- **Team colour**: any material named `Accent` (or containing "accent") is tinted per team at runtime.
-  Keep it a plain base colour without a strong texture so the tint reads.
+- **Team colour**: a material named `Accent` is tinted per team at runtime. Models that ship with their own
+  designed livery (e.g. a `Team paint` material) are left exactly as authored.
 - **Materials**: metallic ≤ 0.4 on the hull so it reads under lamps at night (fully metallic hulls go black).
   Emissive parts are fine — engine grilles, canopy strips — the game adds glow.
 - **No animation needed.** No lights, cameras or particles in the file — the game adds those.

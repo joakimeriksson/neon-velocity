@@ -1,0 +1,92 @@
+[
+  {
+    "concept": "Needle",
+    "filename": "player.glb",
+    "name": "player",
+    "triangles": 1220,
+    "parts": 7,
+    "bounds_min": [
+      -0.9774834437086093,
+      -0.1902759526938239,
+      -2.25
+    ],
+    "bounds_max": [
+      0.9774834437086093,
+      0.6097240473061761,
+      2.25
+    ],
+    "thrusters": 2
+  },
+  {
+    "concept": "Fork",
+    "filename": "ai_0.glb",
+    "name": "ai_0",
+    "triangles": 1548,
+    "parts": 8,
+    "bounds_min": [
+      -1.1142061281337048,
+      -0.29076305220883536,
+      -2.25
+    ],
+    "bounds_max": [
+      1.1142061281337048,
+      0.5092369477911647,
+      2.25
+    ],
+    "thrusters": 2
+  },
+  {
+    "concept": "Manta",
+    "filename": "ai_1.glb",
+    "name": "ai_1",
+    "triangles": 1304,
+    "parts": 7,
+    "bounds_min": [
+      -1.15,
+      -0.1858482142857143,
+      -1.2424107142857141
+    ],
+    "bounds_max": [
+      1.15,
+      0.3901785714285714,
+      1.2424107142857141
+    ],
+    "thrusters": 2
+  },
+  {
+    "concept": "Brute",
+    "filename": "ai_2.glb",
+    "name": "ai_2",
+    "triangles": 2256,
+    "parts": 7,
+    "bounds_min": [
+      -1.15,
+      -0.24752136752136755,
+      -1.584649014778325
+    ],
+    "bounds_max": [
+      1.15,
+      0.5524786324786325,
+      1.584649014778325
+    ],
+    "thrusters": 2
+  },
+  {
+    "concept": "Wraith",
+    "filename": "ai_3.glb",
+    "name": "ai_3",
+    "triangles": 1636,
+    "parts": 7,
+    "bounds_min": [
+      -1.15,
+      -0.23776683087027917,
+      -2.033909574468085
+    ],
+    "bounds_max": [
+      1.15,
+      0.5622331691297209,
+      2.033909574468085
+    ],
+    "thrusters": 2
+  }
+]

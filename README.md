@@ -23,6 +23,7 @@ technical, 1.9 km), **Chrome Riot** (wide and fast, 3.5 km). The city around the
 - `scripts/track_defs.gd` — the circuits: control points, width, banking, neon colour, boost pad positions.
 - `scripts/track_builder.gd` — builds a closed banked track from a definition: floor, walls, neon edge strips, start line, boost pads, trimesh collider, starting grid.
 - `scripts/city_builder.gd` + `shaders/` — Blade Runner megacity around the track: ~1300 towers in one MultiMesh with a procedural lit-window/grime facade shader, neon billboards, sodium street lights, sweeping searchlights, wet ground, rain following the camera.
+- `models/ships/*.glb` — the ship models (player + four AI), designed externally; see `models/ships/README.md` for the drop-in spec. `scripts/ship.gd` swaps them in for the placeholder hull and attaches exhausts to their `EngineL`/`EngineR` empties.
 - `scripts/title.gd` — title + circuit select over an attract-mode race; `scripts/highscore_screen.gd` + `scripts/highscores.gd` — initials entry and persisted tables; `scripts/results.gd`, `scripts/pause_menu.gd` — overlays; `scripts/ui_theme.gd` — shared neon UI helpers.
 - `scripts/game.gd` — autoload: scene flow, scoring, `attract` mode, controller name (`AG_TRACK=<n>` env picks a circuit for headless runs).
 - `scripts/ship.gd` — hover controller: raycast hover spring, thrust/drag, lateral grip, airbrakes, boost, wall scrape. Reads inputs a driver child writes. All tuning exported.

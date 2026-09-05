@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: game vehicle design concept comparison sheet, first design pass before actual 3D modeling.
+Create a beautifully composed high-resolution landscape concept sheet of FIVE different original anti-gravity racing craft inspired by the sleek angular futuristic motorsport aesthetic of Wipeout on PS3/PS4. Original designs, no existing franchise logos or copied ships. Professional industrial design, convincingly buildable hard-surface forms, restrained panel seams, sporty painted composite shells, exposed dark mechanical undersides, small emissive anti-gravity elements, enclosed single pilot cockpits. No wheels, no weapons, no conventional airplane wings.
+Layout: five generous clean separate panels in a 3-over-2 grid, each showing ONE entire ship in consistent front three-quarter elevated view, nose toward lower left, no cropping, similar scale, neutral light gray studio background and subtle ground shadow. Each panel contains a small black top-down silhouette inset of its own ship, and a clean number/name caption. Design shapes MUST be strongly different, not palette swaps.
+01 NEEDLE — speed specialist: exceptionally slender single spearhead fuselage, aft cockpit, compact rear engine shoulders, swept small stabilizers. Ivory and vermilion.
+02 FORK — agile technical racer: broad separated twin forward prongs, deep open central channel with a small recessed cockpit bridge, short length, twin rear drives. Yellow and graphite.
+03 MANTA — stable balanced racer: wide low triangular lifting body, smoothly faceted continuous shoulder surfaces, recessed central canopy, tucked rear thrusters. Teal and off-white.
+04 BRUTE — heavy acceleration racer: short muscular squared-off central cockpit pod between two oversized armored propulsion pods, thick chamfered forms, distinctly blunt and industrial. Orange and charcoal.
+05 WRAITH — precision racer: narrow central suspended cockpit spine, two long detached-looking side outriggers visibly connected by short structural bridges, clean negative spaces, elegant reverse-swept tail. Violet and silver.
+Make the silhouettes readable and the parts coherent enough to guide later 3D meshes. Premium realistic game asset render/concept hybrid, crisp edges, nuanced surface roughness, light use wear, soft studio lighting. Avoid excessive tiny greebles or glow that hides geometry. Typography only the five specified number/name captions and small overall title 'ANTI-GRAVITY / RACER CONCEPTS'.
+
+Generated with the built-in image generation tool.

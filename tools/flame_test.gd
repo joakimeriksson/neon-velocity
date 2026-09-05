@@ -19,6 +19,9 @@ func _ready() -> void:
 	env.environment = e
 	add_child(env)
 	_ship = load("res://scenes/ship.tscn").instantiate()
+	var model := OS.get_environment("AG_MODEL")   # e.g. player, ai_2
+	if model != "" and ResourceLoader.exists("res://models/ships/%s.glb" % model):
+		_ship.model_path = "res://models/ships/%s.glb" % model
 	add_child(_ship)
 	_ship.set_physics_process(false)
 	var cam := Camera3D.new()

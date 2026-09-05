@@ -24,6 +24,9 @@ var state := State.COUNTDOWN
 var race_time := 0.0
 var _countdown := 0.0
 var _finish_order: Array[Ship] = []
+var _results: Results
+var _pause: PauseMenu
+var _player_finish_time := 0.0
 
 
 func _ready() -> void:
@@ -38,12 +41,14 @@ func _ready() -> void:
 		ship.add_child(driver)
 		driver.setup(track, 1.0 - 0.04 * i, (-1.0 if i % 2 == 0 else 1.0) * 3.0)
 	player = _spawn_ship(grid[ai_count], "You", Color(0.9, 0.2, 0.3))
-	if OS.has_environment("AG_AUTOPILOT"):
+	if OS.has_environment("AG_AUTOPILOT") or Game.attract:
 		var driver := AIDriver.new()
 		player.add_child(driver)
 		driver.setup(track, 1.0, 0.0)
 	else:
 		player.add_child(PlayerDriver.new())
+		player.wall_hit.connect(func(strength: float): _rumble(0.3, strength, 0.25))
+		player.boosted.connect(func(): _rumble(0.9, 0.3, 0.45))
 
 	camera.target = player
 	camera._snap()
@@ -51,6 +56,16 @@ func _ready() -> void:
 	hud.player = player
 	hud.laps = laps
 	_countdown = countdown_seconds
+	if Game.attract:
+		# Backdrop for the title screen: no HUD, no countdown, never finishes.
+		hud.visible = false
+		laps = 999
+		state = State.RACING
+		for ship in ships:
+			ship.controls_enabled = true
+	else:
+		_pause = PauseMenu.new()
+		add_child(_pause)
 
 
 func _spawn_ship(at: Transform3D, ship_name: String, color: Color) -> Ship:
@@ -68,8 +83,13 @@ func _spawn_ship(at: Transform3D, ship_name: String, color: Color) -> Ship:
 
 
 func _process(delta: float) -> void:
-	if Input.is_action_just_pressed("ui_cancel"):
-		Game.to_menu()
+	if Game.attract:
+		race_time += delta
+		for ship in ships:
+			_update_ship(ship, delta)
+		return
+	if Input.is_action_just_pressed("pause") and state != State.FINISHED and not _pause.visible:
+		_pause.set_paused(true)
 		return
 
 	match state:
@@ -88,10 +108,10 @@ func _process(delta: float) -> void:
 			race_time += delta
 			for ship in ships:
 				_update_ship(ship, delta)
-			if state == State.FINISHED and Input.is_action_just_pressed("reset"):
-				get_tree().reload_current_scene()
+			if state == State.FINISHED:
+				_update_results()
 
-	if state != State.FINISHED and Input.is_action_just_pressed("reset"):
+	if state != State.FINISHED and Input.is_action_just_pressed("reset") and not _pause.visible:
 		player.respawn(track.get_respawn_transform(player.global_position))
 	hud.position_text = "%s / %d" % [_ordinal(_position_of(player)), ships.size()]
 
@@ -130,7 +150,45 @@ func _finish(ship: Ship) -> void:
 	if ship == player:
 		state = State.FINISHED
 		Sfx.play("finish")
-		hud.center_text = "FINISHED  %s\n%s\nR restart   Esc menu" % [_ordinal(_finish_order.size()), hud.format_time(race_time)]
+		_player_finish_time = race_time
+		var position := _finish_order.size()
+		var def := TrackDefs.ALL[Game.track_index]
+		Game.last_result = {
+			"track": def.name,
+			"position": position,
+			"time": race_time,
+			"best_lap": player.best_lap if player.best_lap < INF else 0.0,
+			"score": Game.score_for(def, position, race_time, player.best_lap, laps),
+		}
+		hud.center_text = "FINISHED  %s" % _ordinal(position)
+		get_tree().create_timer(1.6).timeout.connect(_show_results)
+
+
+func _show_results() -> void:
+	hud.visible = false
+	_results = Results.new()
+	add_child(_results)
+	_results.show_results(self)
+
+
+## Keep the field's times updating; ships still out 15 s after the player are marked DNF.
+func _update_results() -> void:
+	if _results == null:
+		return
+	var changed := false
+	for ship in ships:
+		if not ship.finished and race_time - _player_finish_time > 15.0 and not ship.get_meta("dnf", false):
+			ship.set_meta("dnf", true)
+			ship.finished = true
+			ship.controls_enabled = false
+			changed = true
+	if changed or Engine.get_process_frames() % 30 == 0:
+		_results.refresh()
+
+
+func _rumble(weak: float, strong: float, duration: float) -> void:
+	for pad in Input.get_connected_joypads():
+		Input.start_joy_vibration(pad, weak, strong, duration)
 
 
 func _position_of(ship: Ship) -> int:

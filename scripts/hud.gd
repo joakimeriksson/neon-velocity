@@ -17,7 +17,7 @@ func _ready() -> void:
 	_help_label = _make_label(18, Control.PRESET_TOP_LEFT, Control.GROW_DIRECTION_END, Control.GROW_DIRECTION_END)
 	_center_label = _make_label(96, Control.PRESET_CENTER, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_center_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_help_label.text = "W/S or ↑/↓  thrust / brake\nA/D or ←/→  steer\nQ / E  airbrakes\nR  respawn   Esc  menu"
+	_help_label.text = "W/S or ↑/↓  thrust / brake\nA/D or ←/→  steer\nQ / E  airbrakes\nR / △  respawn   Esc / Options  pause"
 	_help_label.modulate = Color(1, 1, 1, 0.6)
 
 

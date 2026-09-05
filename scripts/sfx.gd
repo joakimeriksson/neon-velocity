@@ -1,9 +1,10 @@
 extends Node
 
-## Autoload. One-shot sound effects. A res://audio/sfx/<name>.(wav|ogg) file wins; otherwise
-## the effect is synthesised once at startup (whooshes, thuds and soft ticks tuned for the
-## racer, not arcade blips).
-## Names used by the game: countdown_tick, countdown_go, lap, finish, boost, wall_hit.
+## Autoload. One-shot sound effects, in priority order:
+##   1. a res://audio/sfx/<name>.(wav|ogg) file,
+##   2. a designed gamesynth patch (SfxPatches) played live by the synth,
+##   3. a WAV synthesised here at startup (fallback without the extension).
+## Names used by the game: countdown_tick, countdown_go, lap, finish, boost, wall_hit, ship_hit.
 
 const SFX_DIR := "res://audio/sfx"
 const RATE := 44100
@@ -30,6 +31,10 @@ func has(name: String) -> bool:
 func _stream_for(name: String) -> AudioStream:
 	if _streams.has(name):
 		return _streams[name]
+	var synth := SfxPatches.make_stream(name)
+	if synth:
+		_streams[name] = synth
+		return synth
 	var generated := _generate(name)
 	if generated:
 		_streams[name] = generated

@@ -10,6 +10,8 @@ var _title_box: VBoxContainer
 var _select_box: VBoxContainer
 var _pad_label: Label
 var _press_start: Label
+var _logo: TextureRect
+var _flicker_t := 0.0
 var _buttons: Array[Button] = []
 var _t := 0.0
 
@@ -28,10 +30,15 @@ func _ready() -> void:
 	_ui.add_child(shade)
 
 	_title_box = _centered_box()
-	var name := UiTheme.glow_label(Game.TITLE, 132, UiTheme.NEON)
-	_title_box.add_child(name)
-	_title_box.add_child(UiTheme.label("ANTI-GRAVITY RACING LEAGUE", 26, UiTheme.PINK))
-	_title_box.add_child(_spacer(60))
+	# The neon sign carries the name and the league strapline.
+	_logo = TextureRect.new()
+	_logo.texture = load("res://assets/ui/neon-velocity-neon-sign.png")
+	_logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_logo.custom_minimum_size = Vector2(1180, 472)
+	_logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_title_box.add_child(_logo)
+	_title_box.add_child(_spacer(40))
 	_press_start = UiTheme.label("PRESS START", 34, Color.WHITE)
 	_title_box.add_child(_press_start)
 	_title_box.add_child(_spacer(120))
@@ -64,6 +71,16 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	_press_start.modulate.a = 0.55 + 0.45 * sin(_t * 3.0)
+	# Neon flicker: mostly steady, with an occasional short stutter and a slow breathe.
+	_flicker_t -= delta
+	var level := 0.92 + 0.08 * sin(_t * 1.7)
+	if _flicker_t <= 0.0:
+		if randf() < 0.012:
+			_flicker_t = randf_range(0.04, 0.12)
+		level = 0.55 if _flicker_t > 0.0 else level
+	elif _flicker_t > 0.0:
+		level = 0.55 + 0.35 * randf()
+	_logo.modulate = Color(level, level, level, 1.0)
 
 
 func _unhandled_input(event: InputEvent) -> void:

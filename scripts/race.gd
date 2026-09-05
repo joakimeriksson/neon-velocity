@@ -11,6 +11,13 @@ enum State { COUNTDOWN, RACING, FINISHED }
 @export var countdown_seconds := 3.0
 
 const AI_NAMES := ["Feisar", "AG-Sys", "Auricom", "Qirex", "Piranha", "Assegai"]
+## Engine sound per AI slot: gamesynth preset plus parameter tweaks so no two ships sound alike.
+const AI_ENGINES := [
+	["Heavy", {}],
+	["Turbine", {"whine/detune_cents": 9.0}],
+	["Scramjet", {}],
+	["Racer", {"whine/hz": 3000.0, "roar/hz": 800.0}],
+]
 const AI_COLORS := [Color(1.0, 0.8, 0.1), Color(0.2, 0.9, 0.4), Color(1.0, 0.5, 0.1), Color(0.7, 0.3, 1.0), Color(0.2, 0.6, 1.0), Color(0.9, 0.9, 0.9)]
 
 @onready var track: TrackBuilder = $Track
@@ -37,7 +44,7 @@ func _ready() -> void:
 	var grid := track.get_grid_transforms(ai_count + 1)
 	# Pole is the fastest AI; the player starts at the back.
 	for i in ai_count:
-		var ship := _spawn_ship(grid[i], AI_NAMES[i % AI_NAMES.size()], AI_COLORS[i % AI_COLORS.size()], "ai_%d" % i)
+		var ship := _spawn_ship(grid[i], AI_NAMES[i % AI_NAMES.size()], AI_COLORS[i % AI_COLORS.size()], "ai_%d" % i, AI_ENGINES[i % AI_ENGINES.size()])
 		var driver := AIDriver.new()
 		ship.add_child(driver)
 		driver.setup(track, 1.0 - 0.04 * i, (-1.0 if i % 2 == 0 else 1.0) * 3.0)
@@ -103,11 +110,14 @@ func _apply_environment(env: Dictionary) -> void:
 	sun.rotation_degrees = env.sun_rotation
 
 
-func _spawn_ship(at: Transform3D, ship_name: String, color: Color, model := "") -> Ship:
+func _spawn_ship(at: Transform3D, ship_name: String, color: Color, model := "", engine: Array = ["Racer", {}]) -> Ship:
 	var ship: Ship = ship_scene.instantiate()
 	ship.team_color = color
 	ship.ship_name = ship_name
 	ship.model_path = _find_model(model)
+	var audio: EngineAudio = ship.get_node("EngineAudio")
+	audio.jet_preset = engine[0]
+	audio.jet_tweaks = engine[1]
 	add_child(ship)
 	ship.spawn_transform = at
 	ship.respawn()

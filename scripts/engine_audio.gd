@@ -13,6 +13,8 @@ extends Node3D
 @export var enabled := true
 @export var master_db := -6.0
 @export var jet_preset := "Racer"   ## Racer, Heavy, Turbine, Scramjet
+## Per-ship parameter overrides applied on top of the preset, e.g. {"whine/hz": 1400.0}.
+@export var jet_tweaks := {}
 @export var damage_per_hit := 0.25
 @export var damage_repair := 0.12   ## per second
 
@@ -71,6 +73,8 @@ func _ready() -> void:
 		add_child(_jet)
 		_jet.play()
 		_jet_pb = _jet.get_stream_playback()
+		for key in jet_tweaks:
+			_jet_pb.set_param(key, float(jet_tweaks[key]))
 		return
 	_drone = _make_player("drone", _gen_drone)
 	_turbine = _make_player("turbine", _gen_turbine)

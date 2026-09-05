@@ -56,8 +56,8 @@ func play(name: String, pitch := 1.0, db := 0.0) -> void:
 	p.play()
 
 
-## Positional, in the 3D world.
-func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0) -> void:
+## Positional, in the 3D world. `unit_size` is the distance at which falloff starts.
+func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size := 12.0) -> void:
 	var stream := _stream_for(name)
 	if stream == null:
 		return
@@ -66,8 +66,10 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0) -> void:
 	p.stream = stream
 	p.pitch_scale = pitch
 	p.volume_db = volume_db + db
-	p.unit_size = 12.0
+	p.unit_size = unit_size
 	p.max_db = 3.0
+	p.max_distance = 600.0
+	p.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
 	p.finished.connect(p.queue_free)
 	add_child(p)
 	p.global_position = position

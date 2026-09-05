@@ -129,6 +129,8 @@ func _exit_tree() -> void:
 func _on_boost() -> void:
 	_boost_env = 1.0
 	Sfx.play_at("boost", ship.global_position)
+	# The bell stays at the pad and rings behind the ship.
+	Sfx.play_at("pad_bell", ship.global_position, randf_range(0.96, 1.04), 3.0 if ship.is_player else -2.0, 60.0)
 
 
 func _on_wall_hit(strength: float) -> void:

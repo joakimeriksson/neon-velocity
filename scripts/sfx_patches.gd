@@ -15,6 +15,17 @@ const PATCHES := {
 		"amp_env/attack": 0.06, "amp_env/decay": 0.55, "amp_env/sustain": 0.0, "amp_env/release": 0.3,
 		"fx/drive": 0.25, "master/gain": 0.8, "master/base_note": 60.0,
 	},
+	# Boost pad bell: big inharmonic bell (hum, prime, tierce-ish partials), slow shimmer,
+	# long decay. Played at the pad, so it rings behind you as you speed away.
+	"pad_bell": {
+		"osc1/wave": 0, "osc1/level": 1.0,
+		"osc2/wave": 0, "osc2/level": 0.6, "osc2/semitones": 15.9, "osc2/detune_cents": 6.0,
+		"osc3/wave": 0, "osc3/level": 0.35, "osc3/semitones": 31.0, "osc3/detune_cents": -9.0,
+		"lfo/wave": 0, "lfo/rate_hz": 2.6, "lfo/amp": 0.18,
+		"filter/mode": 1, "filter/cutoff_hz": 7000.0, "filter/resonance": 0.1, "filter/sweep": -0.8,
+		"amp_env/attack": 0.003, "amp_env/decay": 6.0, "amp_env/sustain": 0.0, "amp_env/release": 2.0,
+		"fx/drive": 0.15, "master/gain": 0.9, "master/base_note": 57.0,
+	},
 	# Wall strike: noise crunch closing down fast, sub thud dropping, a square partial for metal.
 	"wall_hit": {
 		"osc1/wave": 5, "osc1/level": 1.0,

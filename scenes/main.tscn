@@ -1,18 +1,20 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/race.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/track_builder.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/ship.tscn" id="3"]
 [ext_resource type="Script" path="res://scripts/chase_camera.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/city_builder.gd" id="6"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
-sky_top_color = Color(0.02, 0.02, 0.08, 1)
-sky_horizon_color = Color(0.3, 0.08, 0.4, 1)
-sky_curve = 0.2
-ground_bottom_color = Color(0.01, 0.01, 0.03, 1)
-ground_horizon_color = Color(0.3, 0.08, 0.4, 1)
-sun_angle_max = 10.0
+sky_top_color = Color(0.03, 0.03, 0.06, 1)
+sky_horizon_color = Color(0.42, 0.2, 0.1, 1)
+sky_curve = 0.12
+ground_bottom_color = Color(0.02, 0.015, 0.02, 1)
+ground_horizon_color = Color(0.4, 0.18, 0.1, 1)
+sun_angle_max = 5.0
+sun_curve = 0.3
 
 [sub_resource type="Sky" id="sky"]
 sky_material = SubResource("sky_mat")
@@ -21,19 +23,30 @@ sky_material = SubResource("sky_mat")
 background_mode = 2
 sky = SubResource("sky")
 ambient_light_source = 3
-ambient_light_energy = 0.6
+ambient_light_energy = 0.35
 tonemap_mode = 3
-tonemap_exposure = 1.1
+tonemap_exposure = 1.0
 ssr_enabled = true
+ssr_max_steps = 96
 glow_enabled = true
-glow_intensity = 1.0
-glow_bloom = 0.1
+glow_intensity = 1.1
+glow_bloom = 0.12
 glow_blend_mode = 1
-glow_hdr_threshold = 1.2
+glow_hdr_threshold = 1.1
 fog_enabled = true
-fog_light_color = Color(0.25, 0.07, 0.35, 1)
-fog_density = 0.003
-fog_aerial_perspective = 0.5
+fog_light_color = Color(0.4, 0.2, 0.12, 1)
+fog_light_energy = 0.9
+fog_density = 0.0035
+fog_aerial_perspective = 0.6
+fog_sky_affect = 0.4
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.016
+volumetric_fog_albedo = Color(0.7, 0.55, 0.5, 1)
+volumetric_fog_emission = Color(0.3, 0.13, 0.06, 1)
+volumetric_fog_emission_energy = 0.5
+volumetric_fog_anisotropy = 0.5
+volumetric_fog_length = 500.0
+volumetric_fog_detail_spread = 1.5
 
 [node name="Race" type="Node3D"]
 script = ExtResource("1")
@@ -44,12 +57,16 @@ environment = SubResource("env")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.766, -0.482, 0.425, 0, 0.661, 0.75, -0.643, -0.574, 0.507, 0, 40, 0)
-light_color = Color(1, 0.75, 0.6, 1)
-light_energy = 1.2
+light_color = Color(0.55, 0.65, 0.9, 1)
+light_energy = 0.35
 shadow_enabled = true
+directional_shadow_max_distance = 250.0
 
 [node name="Track" type="Node3D" parent="."]
 script = ExtResource("2")
+
+[node name="City" type="Node3D" parent="."]
+script = ExtResource("6")
 
 [node name="ChaseCamera" type="Camera3D" parent="."]
 doppler_tracking = 2

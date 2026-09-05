@@ -14,6 +14,7 @@ const AI_NAMES := ["Feisar", "AG-Sys", "Auricom", "Qirex", "Piranha", "Assegai"]
 const AI_COLORS := [Color(1.0, 0.8, 0.1), Color(0.2, 0.9, 0.4), Color(1.0, 0.5, 0.1), Color(0.7, 0.3, 1.0), Color(0.2, 0.6, 1.0), Color(0.9, 0.9, 0.9)]
 
 @onready var track: TrackBuilder = $Track
+@onready var city: CityBuilder = $City
 @onready var camera := $ChaseCamera
 @onready var hud := $HUD
 
@@ -26,6 +27,9 @@ var _finish_order: Array[Ship] = []
 
 
 func _ready() -> void:
+	var def := TrackDefs.ALL[Game.track_index]
+	track.load_def(def)
+	city.build(track, camera)
 	var grid := track.get_grid_transforms(ai_count + 1)
 	# Pole is the fastest AI; the player starts at the back.
 	for i in ai_count:
@@ -65,7 +69,8 @@ func _spawn_ship(at: Transform3D, ship_name: String, color: Color) -> Ship:
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("ui_cancel"):
-		get_tree().quit()
+		Game.to_menu()
+		return
 
 	match state:
 		State.COUNTDOWN:
@@ -125,7 +130,7 @@ func _finish(ship: Ship) -> void:
 	if ship == player:
 		state = State.FINISHED
 		Sfx.play("finish")
-		hud.center_text = "FINISHED  %s\n%s\nR to restart" % [_ordinal(_finish_order.size()), hud.format_time(race_time)]
+		hud.center_text = "FINISHED  %s\n%s\nR restart   Esc menu" % [_ordinal(_finish_order.size()), hud.format_time(race_time)]
 
 
 func _position_of(ship: Ship) -> int:

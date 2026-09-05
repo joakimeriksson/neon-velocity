@@ -18,17 +18,8 @@ extends Node3D
 	set(value):
 		build()
 
-## One lap, roughly 2.3 km (~30 s at race pace). Y is elevation.
-const CONTROL_POINTS: Array[Vector3] = [
-	Vector3(0, 0, 0),
-	Vector3(220, 0, -150),
-	Vector3(380, 25, -420),
-	Vector3(280, 45, -720),
-	Vector3(0, 20, -820),
-	Vector3(-280, 0, -700),
-	Vector3(-420, -20, -380),
-	Vector3(-300, -5, -100),
-]
+var control_points: Array[Vector3] = []
+var neon_color := Color(0.1, 0.9, 1.0)
 
 var frames: Array[Transform3D] = []
 
@@ -40,10 +31,24 @@ var _boost_mat: StandardMaterial3D
 
 
 func _ready() -> void:
+	# At runtime Race calls load_def(); in the editor show the first circuit.
+	if Engine.is_editor_hint():
+		load_def(TrackDefs.ALL[0])
+
+
+## Configure from a TrackDefs entry and (re)build.
+func load_def(def: Dictionary) -> void:
+	control_points.assign(def.points)
+	track_width = def.get("width", 18.0)
+	bank_strength = def.get("bank_strength", 22.0)
+	neon_color = def.get("neon", neon_color)
+	boost_pad_positions.assign(def.get("boost_pads", [0.12, 0.38, 0.6, 0.83]))
 	build()
 
 
 func build() -> void:
+	if control_points.is_empty():
+		return
 	for child in get_children():
 		remove_child(child)
 		child.free()
@@ -116,12 +121,12 @@ func lowest_y() -> float:
 
 func _make_curve() -> Curve3D:
 	var curve := Curve3D.new()
-	var n := CONTROL_POINTS.size()
+	var n := control_points.size()
 	for i in n:
-		var prev := CONTROL_POINTS[(i - 1 + n) % n]
-		var next := CONTROL_POINTS[(i + 1) % n]
+		var prev := control_points[(i - 1 + n) % n]
+		var next := control_points[(i + 1) % n]
 		var tangent := (next - prev) * 0.25
-		curve.add_point(CONTROL_POINTS[i], -tangent, tangent)
+		curve.add_point(control_points[i], -tangent, tangent)
 	curve.closed = true
 	curve.bake_interval = 0.5
 	return curve
@@ -309,14 +314,14 @@ func _make_materials() -> void:
 	_wall_mat.albedo_color = Color(0.1, 0.1, 0.16)
 	_wall_mat.roughness = 0.6
 	_wall_mat.emission_enabled = true
-	_wall_mat.emission = Color(0.1, 0.5, 0.7)
+	_wall_mat.emission = neon_color * 0.6
 	_wall_mat.emission_energy_multiplier = 0.25
 	_wall_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	_strip_mat = StandardMaterial3D.new()
-	_strip_mat.albedo_color = Color(0.1, 0.9, 1.0)
+	_strip_mat.albedo_color = neon_color
 	_strip_mat.emission_enabled = true
-	_strip_mat.emission = Color(0.1, 0.9, 1.0)
+	_strip_mat.emission = neon_color
 	_strip_mat.emission_energy_multiplier = 3.0
 	_strip_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 

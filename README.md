@@ -2,13 +2,19 @@
 
 Wipeout-style anti-gravity racer prototype in Godot 4.7 (Forward+).
 
-Run: `godot --path .` (or open the folder in the editor).
-W/S thrust/brake, A/D steer, Q/E airbrakes, R respawn (restart after finishing), Esc quit.
+Run: `godot --path .` (or open the folder in the editor). Pick a circuit with 1/2/3.
+W/S thrust/brake, A/D steer, Q/E airbrakes, R respawn (restart after finishing), Esc back to menu.
+
+Circuits (`scripts/track_defs.gd`): **Neon Descent** (flowing, 2.6 km), **Undertow** (narrow and
+technical, 1.9 km), **Chrome Riot** (wide and fast, 3.5 km). The city around them is procedural.
 Gamepad: right trigger thrust, left trigger brake, left stick steer, shoulders airbrake.
 
 ## Layout
 
-- `scripts/track_builder.gd` — closed banked track generated from `CONTROL_POINTS` (~2.3 km lap): floor, walls, neon edge strips, start line, boost pads, trimesh collider, starting grid. `@tool`: edit the points and hit *Rebuild* in the inspector.
+- `scripts/track_defs.gd` — the circuits: control points, width, banking, neon colour, boost pad positions.
+- `scripts/track_builder.gd` — builds a closed banked track from a definition: floor, walls, neon edge strips, start line, boost pads, trimesh collider, starting grid.
+- `scripts/city_builder.gd` + `shaders/` — Blade Runner megacity around the track: ~1300 towers in one MultiMesh with a procedural lit-window/grime facade shader, neon billboards, sodium street lights, sweeping searchlights, wet ground, rain following the camera.
+- `scripts/menu.gd`, `scripts/game.gd` — circuit select and cross-scene state (`AG_TRACK=<n>` env picks a circuit for headless runs).
 - `scripts/ship.gd` — hover controller: raycast hover spring, thrust/drag, lateral grip, airbrakes, boost, wall scrape. Reads inputs a driver child writes. All tuning exported.
 - `scripts/player_driver.gd` — keyboard/gamepad → ship.
 - `scripts/engine_audio.gd` — per-ship layered engine sound (drone, turbine, exhaust, airbrake hiss, boost, impacts) on positional players with Doppler. Loops are synthesised at startup; replace with samples later.
@@ -20,13 +26,17 @@ Gamepad: right trigger thrust, left trigger brake, left stick steer, shoulders a
 
 ## Dev
 
-Record a clip without a player (AI drives the player ship):
+Record a clip without a player (AI drives the player ship). Pass the race scene explicitly, the main scene is the menu:
 
-    AG_AUTOPILOT=1 godot --path . --write-movie out/f.png --fixed-fps 30 --quit-after 300
+    AG_TRACK=1 AG_AUTOPILOT=1 godot --path . --write-movie out/f.png --fixed-fps 30 --quit-after 300 scenes/main.tscn
 
 Simulate a full race headless, as fast as possible, printing lap times:
 
-    AG_AUTOPILOT=1 godot --headless --path . --fixed-fps 60 --quit-after 5400
+    AG_TRACK=0 AG_AUTOPILOT=1 godot --headless --path . --fixed-fps 60 --quit-after 5400 scenes/main.tscn
+
+Check that no circuit folds back on itself:
+
+    godot --headless --path . -s tools/check_tracks.gd
 
 New audio/art files need an import pass before a headless run can `load()` them:
 

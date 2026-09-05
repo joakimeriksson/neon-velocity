@@ -17,7 +17,9 @@ Gamepad: right trigger thrust, left trigger brake, left stick steer, shoulders a
 - `scripts/menu.gd`, `scripts/game.gd` — circuit select and cross-scene state (`AG_TRACK=<n>` env picks a circuit for headless runs).
 - `scripts/ship.gd` — hover controller: raycast hover spring, thrust/drag, lateral grip, airbrakes, boost, wall scrape. Reads inputs a driver child writes. All tuning exported.
 - `scripts/player_driver.gd` — keyboard/gamepad → ship.
-- `scripts/engine_audio.gd` — per-ship layered engine sound (drone, turbine, exhaust, airbrake hiss, boost, impacts) on positional players with Doppler. Loops are synthesised at startup; replace with samples later.
+- `scripts/engine_audio.gd` — per-ship engine sound on a positional player with Doppler. Uses the gamesynth `JetEngineStream` (procedural turbine driven by throttle/boost/speed/damage) when the extension is present, else synthesised loops.
+- `scripts/sfx.gd` — one-shots: a WAV in `audio/sfx/` wins, else a gamesynth `SynthStream` preset, else silence.
+- `addons/gamesynth/` — the [gamesynth](../gamesynth) GDExtension (Rust). Binary is gitignored; rebuild and copy it with `tools/sync_gamesynth.sh`.
 - `scripts/ai_driver.gd` — follows the centre line (with a lane offset), airbrakes into corners; `skill` scales top speed.
 - `scripts/race.gd` — spawns the grid (4 AI + player), countdown, laps, positions, finish.
 - `scripts/chase_camera.gd`, `scripts/hud.gd` — camera that rolls with the banking; speed / position / lap / best lap / countdown.
@@ -42,6 +44,8 @@ Simulate a full race headless, as fast as possible, printing lap times:
 Check that no circuit folds back on itself:
 
     godot --headless --path . -s tools/check_tracks.gd
+
+`AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone.
 
 New audio/art files need an import pass before a headless run can `load()` them:
 

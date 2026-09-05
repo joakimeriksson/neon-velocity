@@ -41,6 +41,8 @@ func _ready() -> void:
 		p.finished.connect(_on_finished.bind(i))
 		_players.append(p)
 	_filter = _find_music_lowpass()
+	if OS.has_environment("AG_NO_MUSIC"):
+		return  # dev: listen to engine/SFX alone
 	_scan()
 	play_next()
 

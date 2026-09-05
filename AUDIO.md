@@ -30,7 +30,20 @@ How the game modulates engine loops per frame (`scripts/engine_audio.gd`):
 `speed_ratio` = speed / max_speed (0..1.3 with boost), `throttle` 0..1 smoothed,
 `airbrake` bool, `boost_env` decaying 1→0 after a pad, `impact_env` decaying after a wall hit.
 
-## Stage 2 — real-time synth in the game (later)
+## Stage 2 — real-time synth in the game (DONE: gamesynth GDExtension)
+
+`../gamesynth` ships a Rust GDExtension; `tools/sync_gamesynth.sh` builds it and copies the
+binary into `addons/gamesynth/bin/`. With it loaded:
+
+- every ship's engine is a `JetEngineStream` (`scripts/engine_audio.gd`), fed
+  `set_state(throttle, boost, speed, damage)` each frame; wall hits add damage that repairs over time.
+  Preset per ship via `EngineAudio.jet_preset` (Racer / Heavy / Turbine / Scramjet); tune the ~25
+  params in a `JetEnginePatch` `.tres` later.
+- SFX slots without a WAV fall back to `SynthStream` presets (`Sfx.SYNTH_FALLBACK` maps name -> preset, seed).
+
+Stage 1 files still take priority wherever they exist, so rendered loops or samples can replace any layer.
+
+Original Stage 2 design notes (kept for reference):
 
 If gamesynth becomes the engine sound itself instead of rendering loops, it gets ported to a
 Rust GDExtension implementing `AudioStreamPlayback::mix()`. To make that port mechanical,

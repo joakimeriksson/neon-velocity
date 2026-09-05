@@ -1,10 +1,20 @@
 extends Node
 
-## Autoload. One-shot sound effects from res://audio/sfx/<name>.(wav|ogg).
-## Missing files are silently skipped, so the game runs before any audio exists.
+## Autoload. One-shot sound effects. A res://audio/sfx/<name>.(wav|ogg) file wins; otherwise,
+## with the gamesynth extension present, the effect is synthesised from an sfxr-style preset
+## (same seed = same sound). With neither, the effect is silently skipped.
 ## Names used by the game: countdown_tick, countdown_go, lap, finish, boost, wall_hit.
 
 const SFX_DIR := "res://audio/sfx"
+## name -> [SynthStream preset, seed]
+const SYNTH_FALLBACK := {
+	"countdown_tick": ["Blip", 11],
+	"countdown_go": ["PowerUp", 5],
+	"lap": ["Pickup", 3],
+	"finish": ["PowerUp", 9],
+	"boost": ["Jump", 21],
+	"wall_hit": ["Hit", 4],
+}
 
 @export var volume_db := -6.0
 
@@ -22,16 +32,28 @@ func _ready() -> void:
 
 
 func has(name: String) -> bool:
-	return _streams.has(name)
+	return _stream_for(name) != null
+
+
+func _stream_for(name: String) -> AudioStream:
+	if _streams.has(name):
+		return _streams[name]
+	if SYNTH_FALLBACK.has(name) and ClassDB.class_exists("SynthStream"):
+		var spec: Array = SYNTH_FALLBACK[name]
+		var stream: AudioStream = ClassDB.class_call_static("SynthStream", "from_preset", spec[0], spec[1])
+		_streams[name] = stream
+		return stream
+	return null
 
 
 ## Non-positional (UI / player-relative).
 func play(name: String, pitch := 1.0, db := 0.0) -> void:
-	if not _streams.has(name):
+	var stream := _stream_for(name)
+	if stream == null:
 		return
 	var p := AudioStreamPlayer.new()
 	p.bus = &"SFX"
-	p.stream = _streams[name]
+	p.stream = stream
 	p.pitch_scale = pitch
 	p.volume_db = volume_db + db
 	p.finished.connect(p.queue_free)
@@ -41,11 +63,12 @@ func play(name: String, pitch := 1.0, db := 0.0) -> void:
 
 ## Positional, in the 3D world.
 func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0) -> void:
-	if not _streams.has(name):
+	var stream := _stream_for(name)
+	if stream == null:
 		return
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"SFX"
-	p.stream = _streams[name]
+	p.stream = stream
 	p.pitch_scale = pitch
 	p.volume_db = volume_db + db
 	p.unit_size = 12.0

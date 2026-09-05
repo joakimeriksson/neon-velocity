@@ -2,3 +2,5 @@
 export/
 tools/music/raw/
 out/
+addons/gamesynth/bin/
+.DS_Store

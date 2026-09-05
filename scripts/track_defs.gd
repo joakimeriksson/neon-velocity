@@ -22,6 +22,13 @@ const DUSK := {
 	"vol_fog": 0.008, "vol_fog_albedo": Color(0.9, 0.6, 0.45), "vol_fog_emission": Color(0.35, 0.15, 0.06),
 	"rain": false, "window_lit": 0.6, "exposure": 0.95,
 }
+const DAY := {
+	"sky_top": Color(0.22, 0.45, 0.85), "sky_horizon": Color(0.78, 0.85, 0.92),
+	"sun_color": Color(1.0, 0.96, 0.9), "sun_energy": 2.6, "sun_rotation": Vector3(-48, 35, 0),
+	"ambient": 1.6, "fog_color": Color(0.7, 0.78, 0.9), "fog_density": 0.0012,
+	"vol_fog": 0.004, "vol_fog_albedo": Color(0.9, 0.92, 0.95), "vol_fog_emission": Color(0.06, 0.07, 0.08),
+	"rain": false, "window_lit": 0.05, "exposure": 0.85,
+}
 const DAWN := {
 	"sky_top": Color(0.3, 0.36, 0.45), "sky_horizon": Color(0.65, 0.62, 0.6),
 	"sun_color": Color(0.85, 0.9, 1.0), "sun_energy": 1.3, "sun_rotation": Vector3(-25, -60, 0),
@@ -80,5 +87,22 @@ const ALL: Array[Dictionary] = [
 			Vector3(-300, 0, -20),
 		],
 		"boost_pads": [0.1, 0.3, 0.5, 0.7, 0.9],
+	},
+	{
+		"name": "Solar Wake",
+		"blurb": "Broad daylight: long sweepers and a fast chicane, nowhere to hide.",
+		"width": 20.0,
+		"bank_strength": 26.0,
+		"neon": Color(1.0, 0.92, 0.55),
+		"par_lap": 28.0,
+		"env": DAY,
+		"light_color": Color(1.0, 0.95, 0.85),
+		"lit_sections": [],
+		"points": [
+			Vector3(0, 0, 0), Vector3(260, 0, -90), Vector3(430, 18, -300), Vector3(370, 34, -570),
+			Vector3(160, 12, -720), Vector3(-130, -8, -730), Vector3(-340, 4, -560), Vector3(-270, 24, -330),
+			Vector3(-440, 12, -150), Vector3(-230, 0, 30),
+		],
+		"boost_pads": [0.15, 0.42, 0.66, 0.88],
 	},
 ]

@@ -10,7 +10,7 @@ extends Node
 const MUSIC_DIR := "res://audio/music"
 const SILENT_DB := -60.0
 
-@export var volume_db := -8.0
+@export var volume_db := -3.0
 @export var crossfade_time := 3.0
 
 @export_group("Speed response")

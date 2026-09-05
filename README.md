@@ -26,9 +26,14 @@ Gamepad: right trigger thrust, left trigger brake, left stick steer, shoulders a
 
 ## Dev
 
-Record a clip without a player (AI drives the player ship). Pass the race scene explicitly, the main scene is the menu:
+Record a clip without a player (AI drives the player ship). Pass the race scene explicitly, the main scene is the menu.
+Use the AVI writer (real-time speed; PNG is ~30x slower) and keep the window uncovered: macOS stops
+an occluded window from drawing and the writer just repeats the last frame. `--always-on-top` helps.
 
-    AG_TRACK=1 AG_AUTOPILOT=1 godot --path . --write-movie out/f.png --fixed-fps 30 --quit-after 300 scenes/main.tscn
+    AG_TRACK=1 AG_AUTOPILOT=1 godot --path . --always-on-top --write-movie out/clip.avi --fixed-fps 30 --quit-after 900 scenes/main.tscn
+    ffmpeg -i out/clip.avi -c:v libx264 -crf 19 -pix_fmt yuv420p -c:a aac out/clip.mp4
+
+Godot's closing "N frames" line should equal --quit-after; fewer means frames were dropped while occluded.
 
 Simulate a full race headless, as fast as possible, printing lap times:
 

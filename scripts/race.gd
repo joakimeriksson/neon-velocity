@@ -11,6 +11,7 @@ enum State { COUNTDOWN, RACING, FINISHED }
 @export var laps := 3
 @export var ai_count := 4
 @export var countdown_seconds := 3.0
+@export var rescue_after := 0.8      ## seconds off the track before the rescue picks a ship up
 
 const AI_NAMES := ["Halcyon", "Voss", "Kestrel", "Mirage", "Sable-9", "Tessera"]
 ## Engine sound per AI slot: gamesynth preset plus parameter tweaks so no two ships sound alike.
@@ -67,6 +68,9 @@ func _ready() -> void:
 			_rumble(0.6, strength * 0.7, 0.2)
 			camera.shake(strength * 0.6))
 		player.boosted.connect(func(): _rumble(0.9, 0.3, 0.45))
+		player.landed.connect(func(impact: float):
+			_rumble(0.5, clampf(impact / 25.0, 0.2, 1.0), 0.25)
+			camera.shake(clampf(impact / 30.0, 0.1, 0.9)))
 		player.hit_taken.connect(func(_damage: float, by_name: String, weapon: String):
 			_rumble(1.0, 1.0, 0.5)
 			camera.shake(1.4)
@@ -144,6 +148,10 @@ func _spawn_ship(at: Transform3D, ship_name: String, color: Color, model := "", 
 	ship.item_pad_hit.connect(func(): ship.give_item(Items.roll(_position_of(ship), ships.size())))
 	ship.item_used.connect(_on_item_used.bind(ship))
 	ship.eliminated.connect(_on_eliminated.bind(ship))
+	if _log:
+		ship.landed.connect(func(impact: float):
+			if ship.air_time > 0.5:
+				print("%6.1f  %-8s air %.2f s  (~%.1f m high)  touchdown %.0f m/s  at %.0f%% of lap" % [race_time, ship.ship_name, ship.air_time, 30.0 * ship.air_time * ship.air_time / 8.0, impact, ship.progress * 100.0]))
 	ships.append(ship)
 	return ship
 
@@ -187,6 +195,27 @@ func _play_for(ship: Ship, sfx: String) -> void:
 		Sfx.play(sfx, 1.0, 2.0)
 	else:
 		Sfx.play_at(sfx, ship.global_position, 1.0, 0.0, 30.0)
+
+
+## Over the wall or under the road: after a moment a rescue drops the ship back on the track
+## at a standstill. The lost time is the penalty.
+func _check_off_track(ship: Ship, delta: float) -> void:
+	var f := track.frames[posmod(ship.frame_hint, track.frames.size())]
+	var rel := ship.global_position - f.origin
+	var beyond_wall := absf(rel.dot(f.basis.x)) > track.track_width * 0.5 + 1.5
+	var below_road := rel.dot(f.basis.y) < -5.0
+	if (beyond_wall and not ship.grounded) or below_road:
+		ship.off_track_time += delta
+	else:
+		ship.off_track_time = 0.0
+	if ship.off_track_time > rescue_after:
+		if _log:
+			print("%6.1f  %-8s rescued (off the track)" % [race_time, ship.ship_name])
+		var back := track.frames[posmod(ship.frame_hint + 2, track.frames.size())]
+		ship.respawn(Transform3D(back.basis, back.origin + back.basis.y * 1.5))
+		if ship == player and not Game.attract:
+			hud.flash("Off the track. Rescued", HudCanvas.AMBER)
+			Sfx.play("shield_on", 0.7, 0.0)
 
 
 ## Fractional frame index of a ship along the lap.
@@ -318,6 +347,7 @@ func _update_ship(ship: Ship, delta: float) -> void:
 		ship.respawn(track.get_respawn_transform(ship.global_position))
 	if ship.finished:
 		return
+	_check_off_track(ship, delta)
 	ship.lap_time += delta
 	var idx := track.get_nearest_frame_index(ship.global_position, ship.frame_hint)
 	ship.frame_hint = idx

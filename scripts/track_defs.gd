@@ -53,6 +53,7 @@ const ALL: Array[Dictionary] = [
 			Vector3(0, 20, -820), Vector3(-280, 0, -700), Vector3(-420, -20, -380), Vector3(-300, -5, -100),
 		],
 		"boost_pads": [0.12, 0.38, 0.6, 0.83],
+		"relief": [["crest", 0.17, 5.0, 56.0], ["drop", 0.66, 15.0, 44.0]],
 	},
 	{
 		"name": "Undertow",
@@ -70,6 +71,7 @@ const ALL: Array[Dictionary] = [
 			Vector3(-280, 32, 90), Vector3(-90, 18, 110),
 		],
 		"boost_pads": [0.2, 0.55, 0.78],
+		"relief": [["crest", 0.3, 4.0, 44.0], ["drop", 0.62, 11.0, 38.0]],
 	},
 	{
 		"name": "Chrome Riot",
@@ -87,6 +89,7 @@ const ALL: Array[Dictionary] = [
 			Vector3(-300, 0, -20),
 		],
 		"boost_pads": [0.1, 0.3, 0.5, 0.7, 0.9],
+		"relief": [["crest", 0.36, 7.0, 70.0], ["crest", 0.58, 5.0, 56.0], ["drop", 0.78, 17.0, 48.0]],
 	},
 	{
 		"name": "Solar Wake",
@@ -104,5 +107,6 @@ const ALL: Array[Dictionary] = [
 			Vector3(-440, 12, -150), Vector3(-230, 0, 30),
 		],
 		"boost_pads": [0.15, 0.42, 0.66, 0.88],
+		"relief": [["crest", 0.22, 5.0, 56.0], ["crest", 0.5, 4.0, 48.0], ["drop", 0.74, 13.0, 42.0]],
 	},
 ]

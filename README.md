@@ -18,6 +18,12 @@ Space / Ctrl / Square, or absorb the item for energy with F / Circle. Projectile
 road round corners. Walls, collisions and weapons drain the energy bar; the green pit lane before the start line
 recharges it; at zero the ship explodes and is eliminated. The AI fires, mines, shields and pits too.
 
+**Air**: the hover keeps vertical momentum. It pushes up as hard as needed but pulls down only a little
+(`track_pull` on the ship), so crests and drops (`relief` in `track_defs.gd`, snapped to the straightest stretch nearby)
+throw a fast ship 4-6 m into the air, over the 2.5 m walls if you steer wrong. Thrust and grip are reduced in flight,
+the nose follows the flight path, hard landings cost energy, and a ship over the wall or under the road is rescued
+back onto the track at a standstill after 0.8 s.
+
 **Scoring**: position points (1000 / 700 / 500 / 350 / 200) + 25 per second under the circuit's par time
 (`par_lap` × 3 in `track_defs.gd`) + 250 for a lap under 97% of par + 75 per weapon hit landed and 250 per rival eliminated. Being eliminated scores 0.
 
@@ -66,7 +72,7 @@ Check that no circuit folds back on itself, and that both walls actually stop a 
     godot --headless --path . -s tools/check_walls.gd
 
 `AG_ENERGY=40` starts every ship at that energy (pit stops, low-energy warnings).
-`AG_COMBAT_LOG=1` prints every pickup use, hit, pit entry and elimination with race time, for balancing in a headless sim.
+`AG_COMBAT_LOG=1` prints every pickup use, hit, pit entry, jump (airtime, height, touchdown speed), rescue and elimination with race time, for balancing in a headless sim.
 `AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone; `AG_NO_EXHAUST=1` hides the
 afterburners. `tools/flame_test.tscn` is a side-view rig for tuning the exhaust:
 

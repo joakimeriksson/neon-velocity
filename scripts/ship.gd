@@ -17,6 +17,7 @@ signal item_used(item: int)
 signal item_absorbed
 signal hit_taken(damage: float, by_name: String, weapon: String)   ## weapon hits only
 signal eliminated
+signal landed(impact: float)   ## came down from a jump; impact is the touchdown speed in m/s
 
 @export_group("Engine")
 @export var max_speed := 95.0        ## m/s (~340 km/h)
@@ -45,9 +46,18 @@ signal eliminated
 
 @export_group("Hover")
 @export var hover_height := 1.3
-@export var hover_stiffness := 10.0
+@export var hover_spring := 90.0     ## m/s^2 of lift per metre below hover height
+@export var hover_damping := 14.0
+@export var hover_range := 3.2       ## beyond this far off the surface the ship is flying
+## How hard the track can pull the ship down. Low values let crests throw the ship into
+## the air; high values glue it to the road.
+@export var track_pull := 14.0
 @export var align_speed := 7.0
+@export var air_align_speed := 2.0
 @export var gravity := 30.0
+@export var air_thrust := 0.35       ## fraction of thrust available while flying
+@export var air_grip := 0.35         ## lateral grip while flying
+@export var hard_landing := 27.0     ## touchdown speed (m/s) above which a landing hurts; a clean crest lands at ~20
 
 @export_group("Visual")
 @export var team_color := Color(0.9, 0.2, 0.3)
@@ -103,6 +113,8 @@ var spawn_transform := Transform3D.IDENTITY
 var speed := 0.0
 var grounded := false
 var scraping := false
+var air_time := 0.0          ## seconds since the ship last hovered over track
+var off_track_time := 0.0    ## maintained by Race; rescue when it runs long
 
 var _up := Vector3.UP
 var _bank := 0.0
@@ -127,6 +139,8 @@ func _ready() -> void:
 	for flame in _flames:
 		flame.get_child(0).material_override = _flame_mat
 	energy = max_energy
+	# Long enough to see the landing coming and line up with it.
+	ground_ray.target_position = Vector3(0, -30, 0)
 	_shield_mesh = _make_shield_mesh()
 	add_child(_shield_mesh)
 
@@ -169,6 +183,8 @@ func respawn(at: Transform3D = spawn_transform) -> void:
 	velocity = Vector3.ZERO
 	_up = at.basis.y
 	speed = 0.0
+	air_time = 0.0
+	off_track_time = 0.0
 
 
 func boost() -> void:
@@ -300,10 +316,16 @@ func _physics_process(delta: float) -> void:
 		airbrake_r = false
 	var airbraking := airbrake_l or airbrake_r
 
-	# --- Align to the track surface
-	grounded = ground_ray.is_colliding()
-	var target_up := ground_ray.get_collision_normal() if grounded else Vector3.UP
-	_up = _up.slerp(target_up, minf(align_speed * delta, 1.0)).normalized()
+	# --- Hovering over track, or flying? Align to the surface below, quickly when hovering
+	# and gently in the air so the ship lines up with its landing.
+	var ray_hit := ground_ray.is_colliding()
+	var dist := INF
+	if ray_hit:
+		dist = global_position.distance_to(ground_ray.get_collision_point())
+	grounded = ray_hit and dist < hover_range
+	var target_up := ground_ray.get_collision_normal() if ray_hit else Vector3.UP
+	var align := align_speed if grounded else air_align_speed
+	_up = _up.slerp(target_up, minf(align * delta, 1.0)).normalized()
 
 	# --- Heading: project forward onto the surface plane, then yaw around the surface normal
 	var fwd := -global_transform.basis.z
@@ -324,11 +346,14 @@ func _physics_process(delta: float) -> void:
 
 	# --- Planar velocity: thrust, drag, grip
 	var v_plane := velocity - _up * velocity.dot(_up)
-	v_plane += fwd * (throttle_in * thrust - brake_in * brake_force) * delta
+	var authority := 1.0 if grounded else air_thrust
+	v_plane += fwd * (throttle_in * thrust * authority - brake_in * brake_force * authority) * delta
 	v_plane -= v_plane * drag * delta
 	if airbraking:
 		v_plane -= v_plane * airbrake_drag * delta
 	var grip := airbrake_grip if airbraking else lateral_grip
+	if not grounded:
+		grip = air_grip
 	var lateral := v_plane.dot(right)
 	v_plane -= right * lateral * minf(grip * delta, 1.0)
 	var forward_speed := v_plane.dot(fwd)
@@ -339,15 +364,25 @@ func _physics_process(delta: float) -> void:
 	if planar_speed > max_speed:
 		v_plane = v_plane / planar_speed * lerpf(planar_speed, max_speed, minf(overspeed_decay * delta, 1.0))
 
-	# --- Hover: critically damped spring on height above the surface, else fall
-	var v_up: float
+	# --- Vertical: the ship keeps its momentum. Hovering, a spring-damper holds it at hover
+	# height; it pushes up as hard as it needs to but pulls down only by `track_pull`, so when
+	# the road falls away faster than that (a crest at speed, a drop) the ship flies.
+	var v_up := velocity.dot(_up)
+	var gravity_push := Vector3.ZERO
 	if grounded:
-		var dist := global_position.distance_to(ground_ray.get_collision_point())
-		v_up = (hover_height - dist) * hover_stiffness
+		if air_time > 0.35:
+			var impact := maxf(-v_up, 0.0)
+			landed.emit(impact)
+			if impact > hard_landing:
+				apply_damage((impact - hard_landing) * 0.9)
+		air_time = 0.0
+		var lift := hover_spring * (hover_height - dist) - hover_damping * v_up
+		v_up += maxf(lift, -(gravity + track_pull)) * delta
 	else:
-		v_up = velocity.dot(_up) - gravity * delta
+		air_time += delta
+		gravity_push = Vector3.DOWN * gravity * delta
 
-	velocity = v_plane + _up * v_up
+	velocity = v_plane + _up * v_up + gravity_push
 	up_direction = _up
 	move_and_slide()
 
@@ -386,7 +421,11 @@ func _physics_process(delta: float) -> void:
 func _update_visuals(lateral: float, delta: float) -> void:
 	# Roll into the turn, plus a bit extra when sliding sideways.
 	_bank = lerpf(_bank, steer_in * bank_angle + lateral * 0.01, minf(8.0 * delta, 1.0))
-	_pitch = lerpf(_pitch, _throttle * pitch_angle - brake_in * brake_dip, minf(5.0 * delta, 1.0))
+	var target_pitch := _throttle * pitch_angle - brake_in * brake_dip
+	if not grounded and speed > 5.0:
+		# Flying: nose up on the way up, down on the way down.
+		target_pitch = clampf(atan2(velocity.dot(_up), speed) * 0.7, -0.45, 0.45)
+	_pitch = lerpf(_pitch, target_pitch, minf(5.0 * delta, 1.0))
 	# A weapon hit throws the hull into a decaying yaw wobble.
 	_spin *= exp(-3.5 * delta)
 	var spin_yaw := sin(_spin * 14.0) * _spin * 0.9

@@ -27,6 +27,10 @@ var control_points: Array[Vector3] = []
 var neon_color := Color(0.1, 0.9, 1.0)
 var light_color := Color(0.8, 0.9, 1.0)
 var lit_sections: Array = []   # [[start_fraction, end_fraction], ...]
+## Vertical features: ["crest" | "drop", lap fraction, height (m), length (m)]. Each snaps to
+## the straightest stretch near its fraction. See _apply_relief().
+var relief: Array = []
+var relief_placed: Array = []   # [[kind, frame index], ...] where they ended up, for tools
 
 var frames: Array[Transform3D] = []
 
@@ -53,6 +57,7 @@ func load_def(def: Dictionary) -> void:
 	neon_color = def.get("neon", neon_color)
 	light_color = def.get("light_color", light_color)
 	lit_sections = def.get("lit_sections", [])
+	relief = def.get("relief", [])
 	boost_pad_positions.assign(def.get("boost_pads", [0.12, 0.38, 0.6, 0.83]))
 	item_pad_positions.assign(def.get("item_pads", _default_item_pads()))
 	pit_lane = def.get("pit", [0.9, 0.985, 1.0])
@@ -209,6 +214,11 @@ func _sample_frames(curve: Curve3D) -> Array[Transform3D]:
 		positions.append(p)
 		forwards.append((p2 - p).normalized())
 
+	_apply_relief(positions, forwards)
+	# Headings follow the reshaped road.
+	for i in count:
+		forwards[i] = (positions[(i + 1) % count] - positions[i]).normalized()
+
 	# Bank from local curvature: positive = left turn -> raise the right (outer) edge.
 	var banks: Array[float] = []
 	for i in count:
@@ -231,6 +241,51 @@ func _sample_frames(curve: Curve3D) -> Array[Transform3D]:
 		up = up.rotated(fwd, -banks[i])
 		result.append(Transform3D(Basis(right, up, -fwd), positions[i]))
 	return result
+
+
+## Crests and drops, the things that throw a fast ship into the air.
+##  - crest: a raised-cosine hump `height` tall over `length` metres. The ship leaves the road
+##    on the way up and lands beyond it.
+##  - drop: the road falls `height` over `length` metres, then climbs back gently over the next
+##    500 m so the lap still closes.
+## Each is slid along the lap (within 5% of where it was asked for) to the straightest stretch,
+## and kept clear of the start, the grid and the pit lane.
+func _apply_relief(positions: Array[Vector3], forwards: Array[Vector3]) -> void:
+	relief_placed.clear()
+	var count := positions.size()
+	var bend: Array[float] = []
+	for i in count:
+		bend.append(absf(forwards[(i - 1 + count) % count].cross(forwards[(i + 1) % count]).y))
+	for feature in relief:
+		var kind: String = feature[0]
+		var height: float = feature[2]
+		var length: float = feature[3]
+		var span := int((length + 170.0) / step)   # the feature plus room to fly and land
+		var lead := int(40.0 / step)               # and a straight run-up
+		var want := int(float(feature[1]) * count)
+		var lo := maxi(want - count / 20, count / 25)
+		var hi := mini(want + count / 20, int(count * 0.86) - span)
+		var best := clampi(want, lo, maxi(lo, hi))
+		var best_bend := INF
+		for start in range(lo, maxi(lo + 1, hi)):
+			var total := 0.0
+			for k in range(-lead, span):
+				total += bend[posmod(start + k, count)]
+			if total < best_bend:
+				best_bend = total
+				best = start
+		relief_placed.append([kind, best])
+		var frames_long := int(length / step)
+		if kind == "crest":
+			for k in frames_long + 1:
+				var x := float(k) / float(frames_long)
+				positions[(best + k) % count].y += height * 0.5 * (1.0 - cos(TAU * x))
+		else:
+			var recover := int(500.0 / step)
+			for k in frames_long + recover:
+				var fall := smoothstep(0.0, 1.0, float(k) / float(frames_long))
+				var climb := clampf(float(k - frames_long) / float(recover), 0.0, 1.0)
+				positions[(best + k) % count].y -= height * fall * (1.0 - smoothstep(0.0, 1.0, climb))
 
 
 func _edge(i: int, side: float, lift := 0.0) -> Vector3:

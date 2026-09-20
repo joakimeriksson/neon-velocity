@@ -56,6 +56,13 @@ func _ready() -> void:
 	ship.boosted.connect(_on_boost)
 	ship.pad_passed.connect(_on_pad_passed)
 	ship.eliminated.connect(_on_eliminated)
+	ship.landed.connect(func(impact: float):
+		if impact > 6.0:
+			var strength := clampf(impact / 28.0, 0.2, 1.0)
+			if ship.is_player:
+				Sfx.play("wall_hit", 0.6, -6.0 + strength * 10.0)
+			else:
+				Sfx.play_at("wall_hit", ship.global_position, 0.6, -10.0 + strength * 10.0))
 	ship.item_absorbed.connect(func():
 		if ship.is_player:
 			Sfx.play("recharge", 1.3, 0.0))

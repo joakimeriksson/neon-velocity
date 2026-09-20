@@ -38,7 +38,7 @@ var _results: Results
 var _pause: PauseMenu
 var _player_finish_time := 0.0
 var _eliminated_at := {}   # Ship -> race_time
-var _reverb: AudioEffectReverb
+var _reverbs := {}   # bus name -> AudioEffectReverb, for the tunnels
 var _log := OS.has_environment("AG_COMBAT_LOG")   ## print pickups, shots, hits and pit stops
 
 
@@ -220,26 +220,29 @@ func _update_tunnel(delta: float) -> void:
 	var rain := camera.get_node_or_null("Rain")
 	if rain:
 		rain.visible = not inside
-	if _reverb == null:
-		var bus := AudioServer.get_bus_index("SFX")
-		if bus < 0:
-			return
-		_reverb = AudioEffectReverb.new()
-		_reverb.room_size = 0.75
-		_reverb.damping = 0.35
-		_reverb.spread = 0.9
-		_reverb.dry = 1.0
-		_reverb.wet = 0.0
-		AudioServer.add_bus_effect(bus, _reverb)
-	_reverb.wet = lerpf(_reverb.wet, 0.4 if inside else 0.0, minf(4.0 * delta, 1.0))
+	if _reverbs.is_empty():
+		for bus_name in ["SFX", "Engines"]:
+			var bus := AudioServer.get_bus_index(bus_name)
+			if bus < 0:
+				continue
+			var reverb := AudioEffectReverb.new()
+			reverb.room_size = 0.75
+			reverb.damping = 0.35
+			reverb.spread = 0.9
+			reverb.dry = 1.0
+			reverb.wet = 0.0
+			AudioServer.add_bus_effect(bus, reverb)
+			_reverbs[bus_name] = reverb
+	for reverb in _reverbs.values():
+		reverb.wet = lerpf(reverb.wet, 0.4 if inside else 0.0, minf(4.0 * delta, 1.0))
 
 
 func _exit_tree() -> void:
-	# The bus outlives the scene; take the reverb off so restarts don't stack them.
-	if _reverb:
-		var bus := AudioServer.get_bus_index("SFX")
+	# The buses outlive the scene; take the reverbs off so restarts don't stack them.
+	for bus_name in _reverbs:
+		var bus := AudioServer.get_bus_index(bus_name)
 		for i in AudioServer.get_bus_effect_count(bus):
-			if AudioServer.get_bus_effect(bus, i) == _reverb:
+			if AudioServer.get_bus_effect(bus, i) == _reverbs[bus_name]:
 				AudioServer.remove_bus_effect(bus, i)
 				break
 
@@ -353,7 +356,7 @@ func _process(delta: float) -> void:
 		for ship in ships:
 			_update_ship(ship, delta)
 		return
-	if Input.is_action_just_pressed("pause") and state != State.FINISHED and not _pause.visible:
+	if Input.is_action_just_pressed("pause") and state != State.FINISHED and not _pause.visible and Engine.get_process_frames() != _pause.resumed_frame:
 		_pause.set_paused(true)
 		return
 
@@ -471,6 +474,8 @@ func _update_results() -> void:
 
 
 func _rumble(weak: float, strong: float, duration: float) -> void:
+	if not Settings.get_value("game/rumble"):
+		return
 	for pad in Input.get_connected_joypads():
 		Input.start_joy_vibration(pad, weak, strong, duration)
 

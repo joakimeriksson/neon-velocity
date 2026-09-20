@@ -79,6 +79,8 @@ func _process(delta: float) -> void:
 	# Controls fade once the race is under way.
 	if player.controls_enabled:
 		help_alpha = maxf(help_alpha - delta / 6.0, 0.0) if _age > 9.0 else 1.0
+	if not Settings.get_value("game/show_controls"):
+		help_alpha = 0.0
 
 	if player.item != _last_item:
 		_last_item = player.item

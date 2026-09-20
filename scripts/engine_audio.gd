@@ -79,6 +79,8 @@ func _ready() -> void:
 	# Airbrake hiss stays a loop in both modes; the jet has no airbrake layer.
 	_hiss = _make_player("exhaust_high", _gen_noise_high)
 	_scrape = _make_scrape()
+	_hiss.bus = &"SFX"      # airbrake hiss and hull scrape are effects, not engine
+	_scrape.bus = &"SFX"
 	if has_jet_engine():
 		_jet = AudioStreamPlayer3D.new()
 		_jet.stream = ClassDB.class_call_static("JetEngineStream", "from_preset", jet_preset)
@@ -225,9 +227,8 @@ func _set_gain(player: AudioStreamPlayer3D, linear: float) -> void:
 func _configure_3d(p: AudioStreamPlayer3D) -> void:
 	# Web builds play audio as browser samples by default; synthesised streams must be mixed.
 	p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
-	# Route to SFX so engine noise and music have separate faders.
-	if AudioServer.get_bus_index("SFX") >= 0:
-		p.bus = &"SFX"
+	# Engines have their own fader (Settings creates the bus); everything else is SFX.
+	p.bus = &"Engines" if AudioServer.get_bus_index("Engines") >= 0 else &"SFX"
 	p.unit_size = 12.0
 	p.max_db = 3.0
 	p.max_distance = 400.0

@@ -63,3 +63,23 @@ static func ordinal(n: int) -> String:
 
 static func accept_hint() -> String:
 	return "Cross / Enter" if Input.get_connected_joypads().size() > 0 else "Enter"
+
+
+## A lit neon tube along `pts`, drawn on `item` from inside its _draw(): dark backing, two halo
+## passes, the coloured glass and a white-hot core.
+static func tube(item: CanvasItem, pts: PackedVector2Array, color: Color, width: float, level := 1.0) -> void:
+	if pts.size() < 2:
+		return
+	item.draw_polyline(pts, Color(0, 0, 0, 0.4), width * 2.2, true)
+	item.draw_polyline(pts, Color(color, 0.10 * level), width * 5.0, true)
+	item.draw_polyline(pts, Color(color, 0.22 * level), width * 2.6, true)
+	item.draw_polyline(pts, Color(color, 0.25 + 0.7 * level), width, true)
+	item.draw_polyline(pts, Color(Color.WHITE.lerp(color, 0.2), 0.9 * level), width * 0.38, true)
+
+
+## Unlit glass tube.
+static func glass(item: CanvasItem, pts: PackedVector2Array, width: float) -> void:
+	item.draw_polyline(pts, Color(0, 0, 0, 0.4), width * 1.8, true)
+	item.draw_polyline(pts, Color(0.75, 0.85, 1.0, 0.16), width, true)
+	item.draw_polyline(pts, Color(1, 1, 1, 0.10), width * 0.3, true)
+

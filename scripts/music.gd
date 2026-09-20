@@ -36,6 +36,8 @@ var _handover_done := false
 
 
 func _ready() -> void:
+	# Keeps playing behind the pause menu, which is also where its volume gets set.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	# Two players so a track can fade out while the next fades in.
 	var bus: StringName = &"Music" if AudioServer.get_bus_index("Music") >= 0 else &"Master"
 	for i in 2:

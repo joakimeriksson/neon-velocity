@@ -17,7 +17,8 @@ var _shake := 0.0
 
 
 func shake(amount: float) -> void:
-	_shake = maxf(_shake, amount)
+	if Settings.get_value("game/camera_shake"):
+		_shake = maxf(_shake, amount)
 
 
 func _ready() -> void:

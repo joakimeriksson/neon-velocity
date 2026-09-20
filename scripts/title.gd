@@ -12,6 +12,7 @@ var _pad_label: Label
 var _press_start: Label
 var _logo: TextureRect
 var _preview: TrackPreview
+var _overlay_open := false
 var _flicker_t := 0.0
 var _buttons: Array[Button] = []
 var _t := 0.0
@@ -71,11 +72,21 @@ func _ready() -> void:
 		b.mouse_entered.connect(b.grab_focus)
 		list.add_child(b)
 		_buttons.append(b)
-	var hs := UiTheme.button("High scores", 22, UiTheme.DIM)
-	hs.custom_minimum_size = Vector2(760, 50)
+	# High scores, settings and credits share the last row.
+	var extras := HBoxContainer.new()
+	extras.add_theme_constant_override("separation", 14)
+	list.add_child(extras)
+	var hs := _small_button(extras, "High scores")
 	hs.pressed.connect(Game.to_highscores)
-	list.add_child(hs)
-	_buttons.append(hs)
+	var settings := _small_button(extras, "Settings")
+	settings.pressed.connect(func(): _open_overlay(SettingsMenu.new(), settings))
+	var credits := _small_button(extras, "Credits")
+	credits.pressed.connect(func(): _open_overlay(CreditsMenu.new(), credits))
+	# Down from the last circuit goes to the first of the three, and up from any of them goes back.
+	var last_circuit: Button = _buttons[TrackDefs.ALL.size() - 1]
+	last_circuit.focus_neighbor_bottom = last_circuit.get_path_to(hs)
+	for b in [hs, settings, credits]:
+		b.focus_neighbor_top = b.get_path_to(last_circuit)
 	_select_box.add_child(_spacer(10))
 	_select_box.add_child(UiTheme.label("Up/Down / D-pad select     %s start     Circle / Esc back" % UiTheme.accept_hint(), 18, UiTheme.DIM))
 
@@ -99,7 +110,28 @@ func _process(delta: float) -> void:
 	_logo.modulate = Color(level, level, level, 1.0)
 
 
+func _small_button(row: HBoxContainer, text: String) -> Button:
+	var b := UiTheme.button(text, 22, UiTheme.DIM)
+	b.custom_minimum_size = Vector2(244, 50)
+	b.mouse_entered.connect(b.grab_focus)
+	row.add_child(b)
+	_buttons.append(b)
+	return b
+
+
+## Settings and credits open over the select screen; it hides meanwhile so focus can't reach it.
+func _open_overlay(menu: OverlayMenu, opener: Button) -> void:
+	_overlay_open = true
+	_select_box.visible = false
+	menu.show_over(self, func():
+		_overlay_open = false
+		_select_box.visible = true
+		opener.grab_focus())
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if _overlay_open:
+		return
 	var pressed := (event is InputEventKey or event is InputEventJoypadButton) and event.is_pressed() and not event.is_echo()
 	if not pressed:
 		return

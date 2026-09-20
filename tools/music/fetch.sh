@@ -3,6 +3,9 @@
 #
 #   tools/music/fetch.sh            # fetch, normalise, install into audio/music/
 #   KEEP_WAV=1 tools/music/fetch.sh # also keep the raw WAVs in tools/music/raw/
+#   SPARK_OUT=music-gen/out_fire tools/music/fetch.sh   # a different output folder on the Spark
+#   SRC_DIR=/some/dir tools/music/fetch.sh              # master WAVs already on this machine
+#                                                       # (rename them first to install under other names)
 #
 # Mastering is deliberately light: EBU R128 loudness normalisation to -14 LUFS
 # with a true-peak ceiling of -1 dBTP, so tracks sit at a consistent level
@@ -23,8 +26,14 @@ FADE="${FADE:-1.5}"          # seconds of fade in/out
 command -v ffmpeg >/dev/null || { echo "ffmpeg not found (brew install ffmpeg)" >&2; exit 1; }
 
 mkdir -p "$RAW" "$DEST"
-echo "==> fetching WAVs from $HOST:$REMOTE_DIR"
-rsync -a --progress --include='*.wav' --exclude='*' "$HOST:$REMOTE_DIR/" "$RAW/"
+if [ -n "${SRC_DIR:-}" ]; then
+  echo "==> mastering local WAVs from $SRC_DIR"
+  RAW="$SRC_DIR"
+  KEEP_WAV=1
+else
+  echo "==> fetching WAVs from $HOST:$REMOTE_DIR"
+  rsync -a --progress --include='*.wav' --exclude='*' "$HOST:$REMOTE_DIR/" "$RAW/"
+fi
 
 shopt -s nullglob
 wavs=("$RAW"/*.wav)

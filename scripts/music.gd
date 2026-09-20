@@ -8,6 +8,9 @@ extends Node
 ## (a low-pass on the Music bus that lifts as the ship approaches top speed).
 
 const MUSIC_DIR := "res://audio/music"
+## Playlists by filename prefix: the title's theme, and what shuffles during races.
+const INTRO := ["intro_"]
+const RACE := ["afrodnb", "fire"]
 const SILENT_DB := -60.0
 
 @export var volume_db := -3.0

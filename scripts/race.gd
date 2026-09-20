@@ -70,7 +70,7 @@ func _ready() -> void:
 		player.hit_taken.connect(func(_damage: float, by_name: String, weapon: String):
 			_rumble(1.0, 1.0, 0.5)
 			camera.shake(1.4)
-			hud.flash("%s HIT  -  %s" % [weapon, by_name.to_upper()], Color(1.0, 0.35, 0.3)))
+			hud.flash("Hit by %s's %s" % [by_name, weapon.to_lower()], HudCanvas.RED))
 		player.item_changed.connect(func():
 			if player.item != Items.NONE:
 				Sfx.play("pickup"))
@@ -239,11 +239,11 @@ func report_hit(attacker: Ship, victim: Ship, weapon: String, landed: bool) -> v
 			attacker.kills += 1
 	if attacker == player and not Game.attract:
 		if not landed:
-			hud.flash("%s BLOCKED" % weapon, Items.COLORS[Items.SHIELD])
+			hud.flash("%s blocked by %s's shield" % [weapon.capitalize(), victim.ship_name], Items.COLORS[Items.SHIELD])
 		elif victim.is_eliminated:
-			hud.flash("%s ELIMINATED" % victim.ship_name.to_upper(), Color(1.0, 0.85, 0.3))
+			hud.flash("%s eliminated" % victim.ship_name, HudCanvas.AMBER)
 		else:
-			hud.flash("%s HIT  -  %s" % [weapon, victim.ship_name.to_upper()], Color(0.5, 1.0, 0.5))
+			hud.flash("%s hit %s" % [weapon.capitalize(), victim.ship_name], HudCanvas.GREEN)
 
 
 func _on_eliminated(ship: Ship) -> void:
@@ -267,7 +267,7 @@ func _on_eliminated(ship: Ship) -> void:
 		"eliminated": true,
 		"score": {"position": 0, "time": 0, "lap": 0, "combat": 0, "total": 0},
 	}
-	hud.center_text = "ELIMINATED"
+	hud.center_text = "Eliminated"
 	get_tree().create_timer(2.2).timeout.connect(_show_results)
 
 
@@ -284,7 +284,7 @@ func _process(delta: float) -> void:
 	match state:
 		State.COUNTDOWN:
 			_countdown -= delta
-			var text := str(ceili(_countdown)) if _countdown > 0.0 else "GO!"
+			var text := str(ceili(_countdown)) if _countdown > 0.0 else "Go"
 			if text != hud.center_text:
 				Sfx.play("countdown_go" if _countdown <= 0.0 else "countdown_tick")
 			hud.center_text = text
@@ -302,7 +302,8 @@ func _process(delta: float) -> void:
 
 	if state != State.FINISHED and Input.is_action_just_pressed("reset") and not _pause.visible:
 		player.respawn(track.get_respawn_transform(player.global_position))
-	hud.position_text = "%s / %d" % [_ordinal(_position_of(player)), ships.size()]
+	hud.position = _position_of(player)
+	hud.field = ships.size()
 	# Warn from about 300 m before the pit lane until its end.
 	var lead := 300.0 / (track.frames.size() * track.step)
 	var pit_start: float = track.pit_lane[0]
@@ -331,6 +332,8 @@ func _update_ship(ship: Ship, delta: float) -> void:
 	# Crossing the line: progress wraps from the last tenth to the first tenth.
 	if ship.progress > 0.9 and progress < 0.1:
 		if ship.lap > 0:
+			if ship == player:
+				hud.lap_completed(ship.lap_time, ship.best_lap)
 			ship.best_lap = minf(ship.best_lap, ship.lap_time)
 		if ship.lap > 0:
 			print("%s  lap %d  %.3f  energy %.0f" % [ship.ship_name, ship.lap, ship.lap_time, ship.energy])
@@ -363,7 +366,7 @@ func _finish(ship: Ship) -> void:
 			"best_lap": player.best_lap if player.best_lap < INF else 0.0,
 			"score": Game.score_for(def, position, race_time, player.best_lap, laps, player.hits_landed, player.kills),
 		}
-		hud.center_text = "FINISHED  %s" % _ordinal(position)
+		hud.center_text = "Finished %s" % _ordinal(position)
 		get_tree().create_timer(1.6).timeout.connect(_show_results)
 
 

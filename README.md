@@ -40,7 +40,8 @@ technical, 1.9 km), **Chrome Riot** (wide and fast, 3.5 km). The city around the
 - `scripts/ai_driver.gd` — follows the centre line (with a lane offset), airbrakes into corners; `skill` scales top speed.
 - `scripts/race.gd` — spawns the grid (4 AI + player), countdown, laps, positions, finish, results, pause, rumble; also the combat referee (pickups, launches, pit recharge, eliminations).
 - `scripts/items.gd`, `scripts/projectile.gd`, `scripts/explosion.gd` — pickups and their position-weighted roll; rockets, missiles and mines in track coordinates (`TrackBuilder.get_point`); one-shot blast effect.
-- `scripts/chase_camera.gd`, `scripts/hud.gd` — camera that rolls with the banking; speed / position / lap / best lap / countdown.
+- `scripts/chase_camera.gd` — camera that rolls with the banking, speed-independent follow.
+- `scripts/hud.gd` + `scripts/hud_canvas.gd` — the HUD. `hud.gd` holds state, timers and warning sounds; `hud_canvas.gd` draws everything as neon glass tubes in `_draw()` (energy tube under the ship that sputters when low and blinks out when hit, item icons, fixed-cell lap digits, pit prompt with chevrons, hit vignette). Type is Saira Condensed (`assets/fonts/`, OFL), also the project-wide UI font.
 - `scripts/music.gd` — autoload; shuffles and crossfades any ogg/wav/mp3 in `audio/music/`, and low-passes the mix at low speed (`Music.attach_ship`).
 - `tools/music/` — soundtrack generation with ACE-Step on the DGX Spark, plus mastering. See `tools/music/README.md`.
 

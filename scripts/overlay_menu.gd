@@ -7,6 +7,8 @@ extends CanvasLayer
 
 var _on_close := Callable()
 var _back: Button
+var _centre: CenterContainer
+var _child_open := false
 
 
 func _init() -> void:
@@ -39,11 +41,11 @@ func _ready() -> void:
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(shade)
-	var centre := CenterContainer.new()
-	centre.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(centre)
+	_centre = CenterContainer.new()
+	_centre.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_centre)
 	var panel := UiTheme.panel()
-	centre.add_child(panel)
+	_centre.add_child(panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
@@ -79,6 +81,17 @@ func _trap_focus(box: VBoxContainer) -> void:
 			c.focus_neighbor_right = c.get_path_to(c)
 
 
+## Open another overlay on top of this one; this one hides until it closes.
+func open_child(menu: OverlayMenu, opener: Control) -> void:
+	_child_open = true
+	_centre.visible = false
+	menu.layer = layer + 1
+	menu.show_over(self, func():
+		_child_open = false
+		_centre.visible = true
+		opener.grab_focus())
+
+
 func close() -> void:
 	_closing()
 	queue_free()
@@ -87,6 +100,8 @@ func close() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _child_open:
+		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause"):
 		get_viewport().set_input_as_handled()
 		close()

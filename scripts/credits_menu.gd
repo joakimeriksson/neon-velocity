@@ -40,4 +40,12 @@ func _build(box: VBoxContainer) -> Control:
 			detail.custom_minimum_size = Vector2(620, 0)
 			column.add_child(detail)
 		grid.add_child(column)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 10)
+	box.add_child(gap)
+	var licences := UiTheme.button("Licences and third-party notices", 22, UiTheme.DIM)
+	licences.custom_minimum_size = Vector2(420, 46)
+	licences.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	licences.pressed.connect(func(): open_child(LicencesMenu.new(), licences))
+	box.add_child(licences)
 	return null

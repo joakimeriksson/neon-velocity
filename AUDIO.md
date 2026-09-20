@@ -63,8 +63,11 @@ The knobs: `Music.volume_db` (+1.5), `EngineAudio.master_db` (-10.5), `Sfx.volum
 `engine_audio.gd:_on_boost`, rain and wind in `ambience.gd`, and a hard limiter on Master (`settings.gd`).
 Settings sliders at 80 are this mix.
 
-gamesynth one-shots never report the end to Godot (their `mix` keeps returning full buffers of silence, so
-`finished` never fires); `Sfx._process` asks each playback `is_playing()` and frees the player itself.
+Until gamesynth faadf3a (2026-09-20) its one-shots never reported their end to Godot: `mix` kept returning
+full buffers of silence, so `finished` never fired and players piled up. That, not a missing note length, was
+the leak found earlier the same day. Fixed at the source: finished one-shots return 0 frames, `finished` fires,
+and `get_length()` gives an upper bound. The game's polling workaround is gone; `Sfx._expire` remains as a
+safety net for an older library.
 
 ### Music (2026-09-20)
 
@@ -94,8 +97,11 @@ gamesynth's `SoundGenerator` now carries nearly every sound in the game:
   faster as a ship approaches.
 - Model files live in `audio/models/*.toml` (copied from `../gamesynth/models/`) and are included in the web
   export by `include_filter="*.toml"`.
-- Still hand-made `SynthPatch`es (`scripts/sfx_patches.gd`): the pad bell and the finish chime. Every such
-  one-shot patch needs a `master/duration`, or it never ends and its player leaks.
+- The boost-pad bell is gamesynth's `bell` ("Large bell" for the player's own pad, the shorter default for other
+  ships' pads) and the race-end chime is `finish`. The hand-made `SynthPatch`es in `scripts/sfx_patches.gd`
+  remain only as the fallback when the generators are missing.
+- Events are stereo since faadf3a (`space/width`, 0.5 = as designed): explosions wide, impacts moderate, beeps
+  centred. The player's `pitch_scale` now transposes events.
 
 Stage 1 files still take priority wherever they exist, so rendered loops or samples can replace any layer.
 

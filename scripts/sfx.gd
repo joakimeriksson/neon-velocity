@@ -4,7 +4,7 @@ extends Node
 ##   1. a res://audio/sfx/<name>.(wav|ogg) file,
 ##   2. a gamesynth event generator (GENERATORS): layered, a little different on every
 ##      trigger, shaped by `power` (how hard) and `distance` (how far from the listener),
-##   3. a hand-made gamesynth patch (SfxPatches), for sounds with no generator (the pad bell),
+##   3. a hand-made gamesynth patch (SfxPatches): kept as the fallback for an older gamesynth,
 ##   4. a WAV synthesised here at startup (fallback without the extension).
 
 const SFX_DIR := "res://audio/sfx"
@@ -32,6 +32,9 @@ const GENERATORS := {
 	"shield_on": ["shield_up", "", 0.0],
 	"shield_block": ["shield_hit", "", 0.0],
 	"rescue": ["shield_up", "Autopilot engage", 0.0],
+	"pad_bell": ["bell", "Large bell", 1.0],      # the player's own pad: the big one
+	"pad_bell_far": ["bell", "", -8.0],           # other ships' pads: shorter ring, well down
+	"finish": ["finish", "", -3.0],
 }
 const RATE := 44100
 
@@ -138,7 +141,7 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size
 	p.pitch_scale = pitch
 	p.volume_db = volume_db + db
 	p.unit_size = unit_size
-	p.max_db = 0.0   # never louder than its set level, however close
+	p.max_db = 0.0   # absolute cap: the distance model boosts sounds closer than unit_size, but never past 0 dB
 	p.max_distance = 600.0
 	p.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
 	p.finished.connect(p.queue_free)
@@ -148,24 +151,17 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size
 	_expire(p, stream)
 
 
-## gamesynth's one-shots go silent when they end but keep filling the buffer, so Godot never
-## sees them finish and `finished` never fires. Ask the playback directly and free the player.
-func _process(_delta: float) -> void:
-	for p in get_children():
-		if p.is_queued_for_deletion() or not p.has_method("get_stream_playback") or not p.playing:
-			continue
-		var playback: AudioStreamPlayback = p.get_stream_playback()
-		if playback and playback.has_method("is_playing") and not playback.is_playing():
-			p.queue_free()
-
-
-## Safety net: whatever the stream does, a one-shot's player is gone shortly after its length.
+## Safety net: players free themselves on `finished`; if a stream never ends, its player is
+## still gone shortly after the stream's stated length.
 func _expire(player: Node, stream: AudioStream) -> void:
 	var length := stream.get_length()
 	var life := (length if length > 0.0 else 8.0) + 2.0
+	# By id, not by reference: the player has normally freed itself long before this fires.
+	var id := player.get_instance_id()
 	get_tree().create_timer(life).timeout.connect(func():
-		if is_instance_valid(player):
-			player.queue_free())
+		var late := instance_from_id(id)
+		if late:
+			late.queue_free())
 
 
 # --- Synthesis ---------------------------------------------------------------------

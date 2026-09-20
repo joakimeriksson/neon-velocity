@@ -199,7 +199,11 @@ func _on_pad_passed() -> void:
 func _on_boost() -> void:
 	_boost_env = 1.0
 	# Every ship rings every pad, so other ships' bells are kept well down and local.
-	Sfx.play_at("pad_bell", ship.global_position, randf_range(0.96, 1.04), -7.0 if ship.is_player else -16.0, 25.0, 1.0, ship.is_player)
+	# Levels live in Sfx.GENERATORS; without the generators both names fall back to the old patch.
+	if ship.is_player:
+		Sfx.play_at("pad_bell", ship.global_position, randf_range(0.97, 1.03), 0.0, 25.0, 1.0, true)
+	else:
+		Sfx.play_at("pad_bell_far" if ClassDB.class_exists("SoundGenerator") else "pad_bell", ship.global_position, randf_range(0.94, 1.06), 0.0 if ClassDB.class_exists("SoundGenerator") else -9.0, 25.0, 0.7)
 
 
 func _on_wall_hit(strength: float) -> void:

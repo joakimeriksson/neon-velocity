@@ -46,14 +46,16 @@ func _ready() -> void:
 	var def := TrackDefs.ALL[Game.track_index]
 	_apply_environment(def.get("env", TrackDefs.NIGHT_RAIN))
 	track.load_def(def)
-	city.build(track, camera, def.get("env", TrackDefs.NIGHT_RAIN))
+	city.build(track, camera, def.get("env", TrackDefs.NIGHT_RAIN), def.get("setting", {}))
 	var grid := track.get_grid_transforms(ai_count + 1)
 	# Pole is the fastest AI; the player starts at the back.
 	for i in ai_count:
 		var ship := _spawn_ship(grid[i], AI_NAMES[i % AI_NAMES.size()], AI_COLORS[i % AI_COLORS.size()], "ai_%d" % i, AI_ENGINES[i % AI_ENGINES.size()])
 		var driver := AIDriver.new()
 		ship.add_child(driver)
-		driver.setup(track, 1.0 - 0.04 * i, (-1.0 if i % 2 == 0 else 1.0) * 3.0)
+		# Lanes either side of the centre line, closer in on a narrow circuit.
+		var lane_offset := minf(3.0, track.track_width * 0.15)
+		driver.setup(track, 1.0 - 0.04 * i, (-1.0 if i % 2 == 0 else 1.0) * lane_offset)
 	player = _spawn_ship(grid[ai_count], "You", Color(0.9, 0.2, 0.3), "player")
 	player.is_player = true
 	if OS.has_environment("AG_AUTOPILOT") or Game.attract:
@@ -150,6 +152,8 @@ func _spawn_ship(at: Transform3D, ship_name: String, color: Color, model := "", 
 	ship.item_used.connect(_on_item_used.bind(ship))
 	ship.eliminated.connect(_on_eliminated.bind(ship))
 	if _log:
+		ship.wall_hit.connect(func(strength: float):
+			print("%6.1f  %-8s wall %.2f at %.1f%% of lap, lateral %.1f, speed %.0f" % [race_time, ship.ship_name, strength, ship.progress * 100.0, ship.track_lateral, ship.speed]))
 		ship.landed.connect(func(impact: float):
 			if ship.air_time > 0.5:
 				print("%6.1f  %-8s air %.2f s  (~%.1f m high)  touchdown %.0f m/s  at %.0f%% of lap" % [race_time, ship.ship_name, ship.air_time, 30.0 * ship.air_time * ship.air_time / 8.0, impact, ship.progress * 100.0]))

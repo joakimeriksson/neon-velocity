@@ -21,13 +21,20 @@ func _init():
 			if tb.in_gap(i) or tb.in_gap(i + 1):
 				continue   # no road, no walls: that's the point of a gap
 			var f: Transform3D = tb.frames[i]
-			var from := f.origin + f.basis.y * 1.0
+			# Start a little way into the panel: a ray lying exactly on the seam between two
+			# panels can slip through it.
+			var from := f.origin.lerp(tb.frames[(i + 1) % tb.frames.size()].origin, 0.37) + f.basis.y * 1.1
 			n += 1
 			for side in [["left", -1.0], ["right", 1.0]]:
+				if tb.is_open(i, side[1]) or tb.is_open(i + 1, side[1]):
+					res[side[0]] += 1   # open by design
+					continue
 				var to: Vector3 = from + f.basis.x * side[1] * (tb.track_width * 0.5 + 4.0)
 				var q := PhysicsRayQueryParameters3D.create(from, to)
 				if not space.intersect_ray(q).is_empty():
 					res[side[0]] += 1
+				else:
+					print("   %s: no %s wall at frame %d (%.0f%% of lap)" % [TrackDefs.ALL[t].name, side[0], i, 100.0 * i / tb.frames.size()])
 		var ok: bool = res.left == n and res.right == n
 		failed = failed or not ok
 		print("%-13s samples=%d  left wall blocks=%d  right wall blocks=%d  %s" % [TrackDefs.ALL[t].name, n, res.left, res.right, "OK" if ok else "LEAKS"])

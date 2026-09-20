@@ -33,10 +33,19 @@ var _beam_angles: Array[float] = []
 
 
 var _env := {}
+var _height_scale := 1.0
+var _water := false
 
 
-func build(track: TrackBuilder, camera: Node3D, env := {}) -> void:
+## `setting` comes from the circuit: {"drop", "count", "gap", "reach", "height", "water"}.
+func build(track: TrackBuilder, camera: Node3D, env := {}, setting := {}) -> void:
 	_env = env
+	ground_drop = setting.get("drop", 35.0)
+	building_count = setting.get("count", 1300)
+	min_gap = setting.get("gap", 24.0)
+	max_distance = setting.get("reach", 520.0)
+	_height_scale = setting.get("height", 1.0)
+	_water = setting.get("water", false)
 	for child in get_children():
 		remove_child(child)
 		child.free()
@@ -136,7 +145,7 @@ func _place_buildings() -> void:
 			continue
 		if not _clear_of_buildings(pos, footprint):
 			continue
-		var h := 24.0 + 240.0 * pow(_rng.randf(), 2.2)
+		var h := (24.0 + 240.0 * pow(_rng.randf(), 2.2)) * _height_scale
 		if _rng.randf() < 0.04:
 			h *= 1.7
 		var yaw := atan2(fwd.x, fwd.z) if _rng.randf() < 0.75 else _rng.randf() * TAU
@@ -305,6 +314,11 @@ func _add_ground() -> void:
 	mat.albedo_color = Color(0.035, 0.035, 0.045)
 	mat.roughness = 0.2
 	mat.metallic = 0.1
+	if _water:
+		# Harbour: a flat, glossy sea that carries the sky.
+		mat.albedo_color = Color(0.03, 0.12, 0.17)
+		mat.roughness = 0.06
+		mat.metallic = 0.55
 	mi.material_override = mat
 	add_child(mi)
 

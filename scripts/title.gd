@@ -11,6 +11,7 @@ var _select_box: VBoxContainer
 var _pad_label: Label
 var _press_start: Label
 var _logo: TextureRect
+var _preview: TrackPreview
 var _flicker_t := 0.0
 var _buttons: Array[Button] = []
 var _t := 0.0
@@ -48,17 +49,31 @@ func _ready() -> void:
 	_select_box = _centered_box()
 	_select_box.add_child(UiTheme.glow_label("SELECT CIRCUIT", 56, UiTheme.NEON))
 	_select_box.add_child(_spacer(20))
+	# The list on the left, the focused circuit's outline on the right.
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 36)
+	_select_box.add_child(row)
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 14)
+	row.add_child(list)
+	var board := UiTheme.panel()
+	row.add_child(board)
+	_preview = TrackPreview.new()
+	_preview.custom_minimum_size = Vector2(520, 470)
+	board.add_child(_preview)
 	for i in TrackDefs.ALL.size():
 		var def := TrackDefs.ALL[i]
 		var b := UiTheme.button("%d   %s\n%s" % [i + 1, def.name, def.blurb], 26, def.neon)
-		b.custom_minimum_size = Vector2(820, 92)
+		b.custom_minimum_size = Vector2(760, 92)
 		b.pressed.connect(Game.start_race.bind(i))
-		_select_box.add_child(b)
+		b.focus_entered.connect(_preview.show_circuit.bind(def))
+		b.mouse_entered.connect(b.grab_focus)
+		list.add_child(b)
 		_buttons.append(b)
 	var hs := UiTheme.button("High scores", 22, UiTheme.DIM)
-	hs.custom_minimum_size = Vector2(820, 50)
+	hs.custom_minimum_size = Vector2(760, 50)
 	hs.pressed.connect(Game.to_highscores)
-	_select_box.add_child(hs)
+	list.add_child(hs)
 	_buttons.append(hs)
 	_select_box.add_child(_spacer(10))
 	_select_box.add_child(UiTheme.label("Up/Down / D-pad select     %s start     Circle / Esc back" % UiTheme.accept_hint(), 18, UiTheme.DIM))

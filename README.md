@@ -32,8 +32,18 @@ faceted shell, neon ribs and shoulder light lines; inside, the rain stops and th
 **Scoring**: position points (1000 / 700 / 500 / 350 / 200) + 25 per second under the circuit's par time
 (`par_lap` × 3 in `track_defs.gd`) + 250 for a lap under 97% of par + 75 per weapon hit landed and 250 per rival eliminated. Being eliminated scores 0.
 
-Circuits (`scripts/track_defs.gd`): **Neon Descent** (flowing, 2.6 km), **Undertow** (narrow and
-technical, 1.9 km), **Chrome Riot** (wide and fast, 3.5 km). The city around them is procedural.
+Circuits (`scripts/track_defs.gd`), each a different kind of drive in a different setting:
+
+| Circuit | Layout | Setting |
+|---|---|---|
+| **Neon Descent** 3.0 km | flowing loop with one S-bend, gap jump right after the start, tunnel, drop | night, rain, the city at mid height |
+| **Undertow** 2.2 km, 14 m wide | hairpins and chicanes, long tunnel; too twisty for a gap | dusk, down in a street canyon between close towers |
+| **Chrome Riot** 4.0 km, 22 m wide | two 700 m straights, a sweeper with no outer wall, a wiggle into one hard stop | grey dawn, 150 m above the skyline |
+| **Solar Wake** 3.4 km | figure-eight; the bridge over the start straight has no rails and a gap in it | daylight, a harbour over water |
+
+`setting` in a circuit's definition shapes the city (height above the streets, density, tower height, water);
+`open_edges` removes walls from a stretch; `features` is the select screen's caption. The select screen draws the
+focused circuit's outline (`scripts/track_preview.gd`).
 
 ## Layout
 
@@ -71,7 +81,10 @@ Simulate a full race headless, as fast as possible, printing lap times:
 
     AG_TRACK=0 AG_AUTOPILOT=1 godot --headless --path . --fixed-fps 60 --quit-after 5400 scenes/main.tscn
 
-Check that no circuit folds back on itself, and that both walls actually stop a ship:
+`tools/track_stats.gd` prints each circuit's shape (share of left and right turning, direction changes, tightest
+radius, longest straight) and writes outlines for `python3 tools/plot_tracks.py`, a top-down plot.
+
+Check that no circuit folds back on itself (a bridge is fine), and that both walls actually stop a ship:
 
     godot --headless --path . -s tools/check_tracks.gd
     godot --headless --path . -s tools/check_walls.gd

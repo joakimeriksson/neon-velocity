@@ -36,8 +36,12 @@ var gaps: Array = []
 ## Roofed stretches as lap fractions [[start, end], ...]; trimmed clear of crests and gaps.
 var tunnels: Array = []
 var tunnel_ranges: Array = []   # [[first frame, last frame], ...] as built
+## Stretches with no wall: [[start fraction, end fraction, side]], side -1 left, 1 right, 0 both.
+var open_edges: Array = []
 
 var frames: Array[Transform3D] = []
+## Corner radius (m) at each frame, capped at 2000 on the straights. The AI brakes by it.
+var radius := PackedFloat32Array()
 
 var _floor_mat: StandardMaterial3D
 var _wall_mat: StandardMaterial3D
@@ -65,6 +69,7 @@ func load_def(def: Dictionary) -> void:
 	lit_sections = def.get("lit_sections", [])
 	relief = def.get("relief", [])
 	tunnels = def.get("tunnels", [])
+	open_edges = def.get("open_edges", [])
 	boost_pad_positions.assign(def.get("boost_pads", [0.12, 0.38, 0.6, 0.83]))
 	item_pad_positions.assign(def.get("item_pads", _default_item_pads()))
 	pit_lane = def.get("pit", [0.9, 0.985, 1.0])
@@ -94,6 +99,8 @@ func build() -> void:
 	_make_materials()
 	_pad_ready_at.clear()
 	frames = _sample_frames(_make_curve())
+	_measure_radius()
+	_plan_tunnels()
 	_add_mesh(_build_surface(), _floor_mat, true)
 	_add_mesh(_build_walls(), _wall_mat, true)
 	_add_mesh(_build_strips(), _strip_mat, false)
@@ -105,6 +112,18 @@ func build() -> void:
 	_add_pit_lane()
 	_add_track_lights()
 	_add_void_floor()
+
+
+func _measure_radius() -> void:
+	var n := frames.size()
+	radius.resize(n)
+	for i in n:
+		var a: Vector3 = -frames[(i - 3 + n) % n].basis.z
+		var b: Vector3 = -frames[(i + 3) % n].basis.z
+		a.y = 0.0
+		b.y = 0.0
+		var angle := absf(a.normalized().signed_angle_to(b.normalized(), Vector3.UP))
+		radius[i] = minf(6.0 * step / maxf(angle, 0.00001), 2000.0)
 
 
 ## Where the ship starts: on the start line, hovering, facing down the track.
@@ -166,6 +185,14 @@ func safe_frame(index: int) -> int:
 		if i >= g[0] - 12 and i < g[1] + 4:
 			return (g[1] + 6) % frames.size()
 	return i
+
+
+func is_open(index: int, side: float) -> bool:
+	var fraction := float(posmod(index, frames.size())) / float(frames.size())
+	for e in open_edges:
+		if fraction >= e[0] and fraction < e[1] and (e[2] == 0 or signf(e[2]) == signf(side)):
+			return not in_tunnel(index)
+	return false
 
 
 func in_tunnel(index: int) -> bool:
@@ -402,12 +429,14 @@ func _build_walls() -> ArrayMesh:
 		# Left wall faces +x (inward), right wall faces -x. The left wall is the mirror image,
 		# so its vertices run the other way round: trimesh collision only registers front
 		# faces, and with the right wall's order the left one was pass-through from the track.
-		_quad(st,
-			_edge(i + 1, -1), _edge(i + 1, -1, wall_height), _edge(i, -1, wall_height), _edge(i, -1),
-			f1.basis.x, f1.basis.x, f0.basis.x, f0.basis.x, uv3, uv2, uv1, uv0)
-		_quad(st,
-			_edge(i, 1), _edge(i, 1, wall_height), _edge(i + 1, 1, wall_height), _edge(i + 1, 1),
-			-f0.basis.x, -f0.basis.x, -f1.basis.x, -f1.basis.x, uv0, uv1, uv2, uv3)
+		if not is_open(i, -1.0):
+			_quad(st,
+				_edge(i + 1, -1), _edge(i + 1, -1, wall_height), _edge(i, -1, wall_height), _edge(i, -1),
+				f1.basis.x, f1.basis.x, f0.basis.x, f0.basis.x, uv3, uv2, uv1, uv0)
+		if not is_open(i, 1.0):
+			_quad(st,
+				_edge(i, 1), _edge(i, 1, wall_height), _edge(i + 1, 1, wall_height), _edge(i + 1, 1),
+				-f0.basis.x, -f0.basis.x, -f1.basis.x, -f1.basis.x, uv0, uv1, uv2, uv3)
 	return st.commit()
 
 
@@ -531,9 +560,8 @@ func _add_gap_edges() -> void:
 			_add_mesh(st.commit(), _start_mat if i == lip else _pit_mat, false)
 
 
-## Tunnels: the walls carried up and over into a faceted roof, a neon rib every 16 m and a
-## light line along each shoulder. Ranges are trimmed so no tunnel covers a crest, ramp or gap.
-func _add_tunnels() -> void:
+## Tunnel ranges, trimmed so no tunnel covers a crest, ramp or gap.
+func _plan_tunnels() -> void:
 	tunnel_ranges.clear()
 	var n := frames.size()
 	for t in tunnels:
@@ -551,6 +579,11 @@ func _add_tunnels() -> void:
 		if last - first > 30:
 			tunnel_ranges.append([first, last])
 
+
+## Tunnels: the walls carried up and over into a faceted roof, a neon rib every 16 m and a
+## light line along each shoulder.
+func _add_tunnels() -> void:
+	var n := frames.size()
 	var half := track_width * 0.5
 	# Cross-section, left to right, as (fraction of half width, height).
 	var profile := [Vector2(-1.0, wall_height), Vector2(-1.0, 4.2), Vector2(-0.62, 7.0), Vector2(0.62, 7.0), Vector2(1.0, 4.2), Vector2(1.0, wall_height)]

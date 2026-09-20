@@ -11,7 +11,10 @@ extends Node
 @export var base_look_ahead := 6.0     ## frames ahead at standstill
 @export var speed_look_ahead := 0.12   ## extra frames per m/s
 
-@export var pit_below := 45.0          ## head for the pit lane under this much energy
+@export var pit_below := 55.0          ## head for the pit lane under this much energy
+## Corner speed is `corner_grip * sqrt(radius)` m/s: 40 m hairpin -> ~50 m/s, 130 m sweeper -> flat out.
+@export var corner_grip := 7.6
+@export var braking := 45.0            ## m/s^2 the AI counts on when judging a braking point
 
 var track: TrackBuilder
 @onready var ship: Ship = get_parent()
@@ -42,8 +45,16 @@ func _physics_process(delta: float) -> void:
 	# Target to the right (+x) means steer right, which is negative steer.
 	var steer := clampf(-local.x * 0.2, -1.0, 1.0)
 	ship.steer_in = steer
-	ship.throttle_in = 1.0
-	ship.brake_in = 0.0
+	# Brake for what's coming: the fastest speed now that still lets the ship slow to each
+	# upcoming corner's speed by the time it gets there.
+	var allowed := INF
+	var reach := int(ship.speed * 2.2 / track.step) + 4
+	for k in range(0, reach, 2):
+		var corner_speed := corner_grip * skill * sqrt(track.radius[(i + k) % n])
+		allowed = minf(allowed, sqrt(corner_speed * corner_speed + 2.0 * braking * k * track.step))
+	var too_fast := ship.speed > allowed
+	ship.throttle_in = 0.0 if too_fast else 1.0
+	ship.brake_in = clampf((ship.speed - allowed) / 8.0, 0.0, 1.0) if too_fast else 0.0
 	# Sharp corner coming: airbrake on the inside to tighten the line.
 	var corner := absf(steer) > 0.7 and ship.speed > ship.max_speed * 0.5
 	ship.airbrake_l = corner and steer > 0.0

@@ -81,6 +81,12 @@ Simulate a full race headless, as fast as possible, printing lap times:
 
     AG_TRACK=0 AG_AUTOPILOT=1 godot --headless --path . --fixed-fps 60 --quit-after 5400 scenes/main.tscn
 
+`tools/perf_probe.tscn` races on autopilot, restarting on the next circuit after each race, and logs frame rate,
+frame times, object / node / resource counts, memory and live sound players every 10 s. Rising counts mean a leak;
+flat counts with a falling frame rate mean the GPU is throttling. Headless is enough for the counts:
+
+    AG_AUTOPILOT=1 AG_NO_MUSIC=1 godot --headless --path . --fixed-fps 60 --quit-after 36000 tools/perf_probe.tscn
+
 `tools/track_stats.gd` prints each circuit's shape (share of left and right turning, direction changes, tightest
 radius, longest straight) and writes outlines for `python3 tools/plot_tracks.py`, a top-down plot.
 

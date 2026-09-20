@@ -169,8 +169,14 @@ static func make_stream(name: String) -> AudioStream:
 	if not PATCHES.has(name) or not ClassDB.class_exists("SynthStream"):
 		return null
 	var patch = ClassDB.instantiate("SynthPatch")
-	for key in PATCHES[name]:
-		patch.set_param(key, float(PATCHES[name][key]))
+	var params: Dictionary = PATCHES[name]
+	for key in params:
+		patch.set_param(key, float(params[key]))
+	# Every patch here decays to silence (sustain 0). Without a note length the synth holds the
+	# note at zero volume for ever: the voice never ends, the player never emits `finished`, and
+	# players pile up by the hundred. So give each one a length: attack plus decay, then release.
+	if not params.has("master/duration"):
+		patch.set_param("master/duration", float(params.get("amp_env/attack", 0.005)) + float(params.get("amp_env/decay", 0.1)))
 	var stream = ClassDB.instantiate("SynthStream")
 	stream.patch = patch
 	stream.one_shot = true

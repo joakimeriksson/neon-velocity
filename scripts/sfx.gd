@@ -57,6 +57,7 @@ func play(name: String, pitch := 1.0, db := 0.0) -> void:
 	p.finished.connect(p.queue_free)
 	add_child(p)
 	p.play()
+	_expire(p, stream)
 
 
 ## Positional, in the 3D world. `unit_size` is the distance at which falloff starts.
@@ -78,6 +79,16 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size
 	add_child(p)
 	p.global_position = position
 	p.play()
+	_expire(p, stream)
+
+
+## Safety net: whatever the stream does, a one-shot's player is gone shortly after its length.
+func _expire(player: Node, stream: AudioStream) -> void:
+	var length := stream.get_length()
+	var life := (length if length > 0.0 else 8.0) + 2.0
+	get_tree().create_timer(life).timeout.connect(func():
+		if is_instance_valid(player):
+			player.queue_free())
 
 
 # --- Synthesis ---------------------------------------------------------------------

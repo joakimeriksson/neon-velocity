@@ -34,7 +34,7 @@ func _ready() -> void:
 	_build_table()
 
 	var r: Dictionary = Game.last_result
-	_entering = not r.is_empty() and Highscores.qualifies(r.track, int(r.score.total))
+	_entering = not r.is_empty() and int(r.score.total) > 0 and Highscores.qualifies(r.track, int(r.score.total))
 	_entry_box.visible = _entering
 	_table_box.visible = not _entering
 	if not _entering and not r.is_empty():

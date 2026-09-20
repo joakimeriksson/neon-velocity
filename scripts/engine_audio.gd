@@ -55,6 +55,10 @@ func _ready() -> void:
 		return
 	ship.boosted.connect(_on_boost)
 	ship.pad_passed.connect(_on_pad_passed)
+	ship.eliminated.connect(_on_eliminated)
+	ship.item_absorbed.connect(func():
+		if ship.is_player:
+			Sfx.play("recharge", 1.3, 0.0))
 	ship.wall_hit.connect(_on_wall_hit)
 	ship.ship_hit.connect(func(strength: float):
 		_duck = maxf(_duck, 0.6)
@@ -105,7 +109,9 @@ func _process(delta: float) -> void:
 			_jet_pb = _jet.get_stream_playback()
 		_jet.volume_db = master_db - 14.0 * _duck
 		# The engine has its own spool inertia, so it gets the raw throttle.
-		_jet_pb.set_state(ship.throttle_in, _boost_env, minf(speed_ratio, 1.0), _damage)
+		# A ship low on energy sounds rough all the time, not only right after a hit.
+		var wear := (1.0 - ship.energy / ship.max_energy) * 0.7
+		_jet_pb.set_state(ship.throttle_in, _boost_env, minf(speed_ratio, 1.0), maxf(_damage, wear))
 		return
 
 	_drone.pitch_scale = 0.85 + speed_ratio * 0.6
@@ -123,6 +129,14 @@ func _process(delta: float) -> void:
 		_set_gain(_impact, _impact_env)
 		if _impact_env < 0.01:
 			_impact.stop()
+
+
+func _on_eliminated() -> void:
+	Sfx.play_at("explosion", ship.global_position, 0.6, 6.0, 60.0)
+	set_process(false)
+	for child in get_children():
+		if child is AudioStreamPlayer3D:
+			child.stop()
 
 
 func _exit_tree() -> void:

@@ -4,7 +4,9 @@ extends Node
 ##   1. a res://audio/sfx/<name>.(wav|ogg) file,
 ##   2. a designed gamesynth patch (SfxPatches) played live by the synth,
 ##   3. a WAV synthesised here at startup (fallback without the extension).
-## Names used by the game: countdown_tick, countdown_go, lap, finish, boost, wall_hit, ship_hit.
+## Names used by the game: countdown_tick, countdown_go, lap, finish, boost, pad_bell, wall_hit,
+## wall_clang, ship_hit, and combat: rocket_fire, missile_fire, mine_drop, explosion, shield_on,
+## shield_block, pickup, recharge, energy_low.
 
 const SFX_DIR := "res://audio/sfx"
 const RATE := 44100
@@ -96,6 +98,21 @@ func _generate(name: String) -> AudioStreamWAV:
 			return _impact()
 		"ship_hit":
 			return _clank()
+		# Combat, for builds without the synth extension.
+		"rocket_fire", "missile_fire":
+			return _whoosh()
+		"explosion":
+			return _impact()
+		"mine_drop", "shield_block":
+			return _clank()
+		"shield_on":
+			return _chime([587.3, 880.0, 1174.7], 0.06, 0.4)
+		"pickup":
+			return _chime([784.0, 1174.7], 0.07, 0.4)
+		"recharge":
+			return _tone_blip([523.3], 0.1, 0.4, 30.0)
+		"energy_low":
+			return _tone_blip([440.0], 0.12, 0.45, 20.0)
 	return null
 
 

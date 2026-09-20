@@ -12,3 +12,7 @@ func _physics_process(_delta: float) -> void:
 	ship.steer_in = Input.get_axis("steer_right", "steer_left")
 	ship.airbrake_l = Input.is_action_pressed("airbrake_left")
 	ship.airbrake_r = Input.is_action_pressed("airbrake_right")
+	if Input.is_action_just_pressed("fire"):
+		ship.use_item()
+	if Input.is_action_just_pressed("absorb"):
+		ship.absorb_item()

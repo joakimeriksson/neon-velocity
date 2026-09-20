@@ -12,8 +12,14 @@ PlayStation controller (DualShock 4 / DualSense over USB or Bluetooth): R2 thrus
 left stick steer, L1/R1 airbrakes, △ respawn, Options pause, ✕ confirm / ○ back in menus, D-pad or stick to navigate.
 Rumble on wall hits and boost pads.
 
+**Combat**: magenta item pads either side of the racing line give one pickup (ROCKET, homing MISSILE, MINES,
+SHIELD, TURBO; leaders roll more defensive items, the back of the field more catch-up ones). Fire with
+Space / Ctrl / Square, or absorb the item for energy with F / Circle. Projectiles ride the track, so rockets follow the
+road round corners. Walls, collisions and weapons drain the energy bar; the green pit lane before the start line
+recharges it; at zero the ship explodes and is eliminated. The AI fires, mines, shields and pits too.
+
 **Scoring**: position points (1000 / 700 / 500 / 350 / 200) + 25 per second under the circuit's par time
-(`par_lap` × 3 in `track_defs.gd`) + 250 for a lap under 97% of par.
+(`par_lap` × 3 in `track_defs.gd`) + 250 for a lap under 97% of par + 75 per weapon hit landed and 250 per rival eliminated. Being eliminated scores 0.
 
 Circuits (`scripts/track_defs.gd`): **Neon Descent** (flowing, 2.6 km), **Undertow** (narrow and
 technical, 1.9 km), **Chrome Riot** (wide and fast, 3.5 km). The city around them is procedural.
@@ -32,7 +38,8 @@ technical, 1.9 km), **Chrome Riot** (wide and fast, 3.5 km). The city around the
 - `scripts/sfx.gd` — one-shots: a WAV in `audio/sfx/` wins, else a gamesynth `SynthStream` preset, else silence.
 - `addons/gamesynth/` — the [gamesynth](../gamesynth) GDExtension (Rust). Binary is gitignored; rebuild and copy it with `tools/sync_gamesynth.sh`.
 - `scripts/ai_driver.gd` — follows the centre line (with a lane offset), airbrakes into corners; `skill` scales top speed.
-- `scripts/race.gd` — spawns the grid (4 AI + player), countdown, laps, positions, finish, results, pause, rumble.
+- `scripts/race.gd` — spawns the grid (4 AI + player), countdown, laps, positions, finish, results, pause, rumble; also the combat referee (pickups, launches, pit recharge, eliminations).
+- `scripts/items.gd`, `scripts/projectile.gd`, `scripts/explosion.gd` — pickups and their position-weighted roll; rockets, missiles and mines in track coordinates (`TrackBuilder.get_point`); one-shot blast effect.
 - `scripts/chase_camera.gd`, `scripts/hud.gd` — camera that rolls with the banking; speed / position / lap / best lap / countdown.
 - `scripts/music.gd` — autoload; shuffles and crossfades any ogg/wav/mp3 in `audio/music/`, and low-passes the mix at low speed (`Music.attach_ship`).
 - `tools/music/` — soundtrack generation with ACE-Step on the DGX Spark, plus mastering. See `tools/music/README.md`.
@@ -57,6 +64,7 @@ Check that no circuit folds back on itself, and that both walls actually stop a 
     godot --headless --path . -s tools/check_tracks.gd
     godot --headless --path . -s tools/check_walls.gd
 
+`AG_COMBAT_LOG=1` prints every pickup use, hit, pit entry and elimination with race time, for balancing in a headless sim.
 `AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone; `AG_NO_EXHAUST=1` hides the
 afterburners. `tools/flame_test.tscn` is a side-view rig for tuning the exhaust:
 

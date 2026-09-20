@@ -14,6 +14,11 @@ extends Node3D
 ## Lap fractions where boost pads sit.
 @export var boost_pad_positions: Array[float] = [0.12, 0.38, 0.6, 0.83]
 @export var boost_pad_length := 6.0
+## Lap fractions where item pads sit (one each side of the centre line).
+@export var item_pad_positions: Array[float] = []
+@export var item_pad_cooldown := 3.0
+## Pit lane: [start fraction, end fraction, side (-1 left, +1 right)]. Recharges energy.
+@export var pit_lane: Array = [0.9, 0.985, 1.0]
 @export var rebuild := false:
 	set(value):
 		build()
@@ -30,6 +35,8 @@ var _wall_mat: StandardMaterial3D
 var _strip_mat: StandardMaterial3D
 var _start_mat: StandardMaterial3D
 var _boost_mat: StandardMaterial3D
+var _pit_mat: StandardMaterial3D
+var _pad_ready_at := {}   # Area3D -> time (s) the item pad comes back
 
 
 func _ready() -> void:
@@ -47,7 +54,23 @@ func load_def(def: Dictionary) -> void:
 	light_color = def.get("light_color", light_color)
 	lit_sections = def.get("lit_sections", [])
 	boost_pad_positions.assign(def.get("boost_pads", [0.12, 0.38, 0.6, 0.83]))
+	item_pad_positions.assign(def.get("item_pads", _default_item_pads()))
+	pit_lane = def.get("pit", [0.9, 0.985, 1.0])
 	build()
+
+
+## Halfway between consecutive boost pads, skipping anything inside the pit lane stretch.
+func _default_item_pads() -> Array:
+	var result := []
+	var pads := boost_pad_positions.duplicate()
+	pads.sort()
+	for i in pads.size():
+		var a: float = pads[i]
+		var b: float = pads[(i + 1) % pads.size()] + (1.0 if i == pads.size() - 1 else 0.0)
+		var mid := fposmod((a + b) * 0.5, 1.0)
+		if mid < 0.88 and mid > 0.03:
+			result.append(mid)
+	return result
 
 
 func build() -> void:
@@ -57,12 +80,15 @@ func build() -> void:
 		remove_child(child)
 		child.free()
 	_make_materials()
+	_pad_ready_at.clear()
 	frames = _sample_frames(_make_curve())
 	_add_mesh(_build_surface(), _floor_mat, true)
 	_add_mesh(_build_walls(), _wall_mat, true)
 	_add_mesh(_build_strips(), _strip_mat, false)
 	_add_mesh(_build_start_line(), _start_mat, false)
 	_add_boost_pads()
+	_add_item_pads()
+	_add_pit_lane()
 	_add_track_lights()
 	_add_void_floor()
 
@@ -113,6 +139,39 @@ func get_respawn_transform(pos: Vector3) -> Transform3D:
 ## 0..1 progress around the lap.
 func get_progress(pos: Vector3) -> float:
 	return float(get_nearest_frame_index(pos)) / float(frames.size())
+
+
+## Interpolated frame at a fractional frame index, shifted `lateral` metres to the right and
+## `lift` metres off the surface. Projectiles and mines live in these coordinates.
+func get_point(s: float, lateral := 0.0, lift := 0.0) -> Transform3D:
+	var n := frames.size()
+	var i := posmod(floori(s), n)
+	var t := s - floorf(s)
+	var a := frames[i]
+	var b := frames[(i + 1) % n]
+	var basis := a.basis.slerp(b.basis, t)
+	var origin := a.origin.lerp(b.origin, t)
+	return Transform3D(basis, origin + basis.x * lateral + basis.y * lift)
+
+
+## Metres right of the centre line, measured in the given frame.
+func get_lateral(pos: Vector3, index: int) -> float:
+	var f := frames[posmod(index, frames.size())]
+	return (pos - f.origin).dot(f.basis.x)
+
+
+## The pit lane's lateral band: [inner edge, outer edge] in metres from the centre, signed.
+func pit_band() -> Array:
+	var side: float = pit_lane[2]
+	return [side * track_width * 0.3, side * track_width * 0.48]
+
+
+func in_pit(index: int, lateral: float) -> bool:
+	var fraction := float(index) / float(frames.size())
+	if fraction < pit_lane[0] or fraction > pit_lane[1]:
+		return false
+	var band := pit_band()
+	return lateral >= minf(band[0], band[1]) and lateral <= maxf(band[0], band[1])
 
 
 func lowest_y() -> float:
@@ -310,6 +369,82 @@ func _on_boost_pad_near(body: Node3D) -> void:
 		body.pad_near()
 
 
+## Item pads: a pair per position, either side of the centre line, so picking one up means
+## leaving the racing line. A pad goes dark for a few seconds after it's taken.
+func _add_item_pads() -> void:
+	var n := frames.size()
+	var pad_frames := int(boost_pad_length / step)
+	for fraction in item_pad_positions:
+		var start := int(fraction * n)
+		for side in [-1.0, 1.0]:
+			var inner: float = side * 0.2
+			var outer: float = side * 0.62
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			for k in pad_frames:
+				var i := (start + k) % n
+				var up0 := frames[i].basis.y
+				var up1 := frames[(i + 1) % n].basis.y
+				_quad(st,
+					_edge(i, minf(inner, outer), 0.05), _edge(i, maxf(inner, outer), 0.05),
+					_edge(i + 1, maxf(inner, outer), 0.05), _edge(i + 1, minf(inner, outer), 0.05),
+					up0, up0, up1, up1, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.85, 0.3, 1.0)
+			mat.emission_enabled = true
+			mat.emission = Color(0.85, 0.3, 1.0)
+			mat.emission_energy_multiplier = 3.0
+			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+			_add_mesh(st.commit(), mat, false)
+
+			var mid := frames[(start + pad_frames / 2) % n]
+			var area := Area3D.new()
+			var shape := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(track_width * 0.21, 4.0, boost_pad_length)
+			shape.shape = box
+			area.add_child(shape)
+			area.transform = Transform3D(mid.basis, mid.origin + mid.basis.x * side * track_width * 0.205 + mid.basis.y * 1.5)
+			area.body_entered.connect(_on_item_pad_entered.bind(area, mat))
+			add_child(area)
+
+
+func _on_item_pad_entered(body: Node3D, area: Area3D, mat: StandardMaterial3D) -> void:
+	if not (body is Ship):
+		return
+	# Game time, not wall-clock, so pads behave the same in slow motion or a fast headless sim.
+	var now := Engine.get_physics_frames() / float(Engine.physics_ticks_per_second)
+	if now < _pad_ready_at.get(area, 0.0):
+		return
+	if body.collect_item_pad():
+		_pad_ready_at[area] = now + item_pad_cooldown
+		mat.emission_energy_multiplier = 0.15
+		var tween := create_tween()
+		tween.tween_interval(item_pad_cooldown)
+		tween.tween_property(mat, ^"emission_energy_multiplier", 3.0, 0.3)
+
+
+## Pit lane: a dashed recharge strip along one edge. Race checks `in_pit()` each frame.
+func _add_pit_lane() -> void:
+	var n := frames.size()
+	var start := int(pit_lane[0] * n)
+	var end := int(pit_lane[1] * n)
+	var side: float = pit_lane[2]
+	var lo := minf(side * 0.6, side * 0.96)
+	var hi := maxf(side * 0.6, side * 0.96)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(start, end):
+		if (i - start) % 3 == 2:
+			continue   # gap: reads as chevrons at speed
+		var up0 := frames[i % n].basis.y
+		var up1 := frames[(i + 1) % n].basis.y
+		_quad(st,
+			_edge(i, lo, 0.04), _edge(i, hi, 0.04), _edge(i + 1, hi, 0.04), _edge(i + 1, lo, 0.04),
+			up0, up0, up1, up1, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+	_add_mesh(st.commit(), _pit_mat, false)
+
+
 ## Artificial lighting along `lit_sections`: lamp poles on alternating sides every 24 m,
 ## and a light gantry across the track at the start of each section.
 func _add_track_lights() -> void:
@@ -433,3 +568,10 @@ func _make_materials() -> void:
 	_boost_mat.emission = Color(1.0, 0.55, 0.1)
 	_boost_mat.emission_energy_multiplier = 2.5
 	_boost_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	_pit_mat = StandardMaterial3D.new()
+	_pit_mat.albedo_color = Color(0.2, 1.0, 0.65)
+	_pit_mat.emission_enabled = true
+	_pit_mat.emission = Color(0.2, 1.0, 0.65)
+	_pit_mat.emission_energy_multiplier = 2.0
+	_pit_mat.cull_mode = BaseMaterial3D.CULL_DISABLED

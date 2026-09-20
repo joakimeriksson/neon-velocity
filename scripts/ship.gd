@@ -11,6 +11,12 @@ signal boosted
 signal pad_passed   ## crossed a boost pad's zone (hit or near miss)
 signal wall_hit(strength: float)
 signal ship_hit(strength: float)
+signal item_pad_hit                                          ## drove over a live item pad with an empty slot
+signal item_changed
+signal item_used(item: int)
+signal item_absorbed
+signal hit_taken(damage: float, by_name: String, weapon: String)   ## weapon hits only
+signal eliminated
 
 @export_group("Engine")
 @export var max_speed := 95.0        ## m/s (~340 km/h)
@@ -28,6 +34,14 @@ signal ship_hit(strength: float)
 @export var airbrake_grip := 1.2     ## lower grip while airbraking -> slide
 @export var wall_scrape := 0.15      ## fraction of speed lost on wall impact
 @export var scrape_drag := 1.2       ## extra drag per second while sliding along a wall
+
+@export_group("Energy")
+@export var max_energy := 100.0
+@export var wall_damage := 9.0       ## energy lost on a full-speed wall impact
+@export var scrape_damage := 5.0     ## energy per second while grinding along a wall
+@export var ship_hit_damage := 3.0
+@export var recharge_rate := 42.0    ## energy per second in the pit lane
+@export var shield_seconds := 5.0
 
 @export_group("Hover")
 @export var hover_height := 1.3
@@ -73,6 +87,17 @@ var best_lap := INF
 var finished := false
 var finish_time := 0.0
 var frame_hint := -1
+var track_lateral := 0.0     ## metres right of the track centre line
+var recharging := false
+var hits_landed := 0
+var kills := 0
+
+# --- Combat state
+var energy := 100.0
+var item := Items.NONE
+var shield_time := 0.0
+var is_eliminated := false
+var invulnerable := false    ## takes hits (slowdown, effects) but loses no energy: attract mode
 
 var spawn_transform := Transform3D.IDENTITY
 var speed := 0.0
@@ -86,6 +111,9 @@ var _throttle := 0.0
 var _boost_vis := 0.0
 var _last_wall_hit_ms := 0
 var _last_ship_hit_ms := 0
+var _spin := 0.0
+var _immunity := 0.0   ## seconds of weapon immunity left after a hit, so mines can't chain
+var _shield_mesh: MeshInstance3D
 
 
 func _ready() -> void:
@@ -98,6 +126,9 @@ func _ready() -> void:
 	# Per-ship flame material so throttle drives each ship's own afterburner.
 	for flame in _flames:
 		flame.get_child(0).material_override = _flame_mat
+	energy = max_energy
+	_shield_mesh = _make_shield_mesh()
+	add_child(_shield_mesh)
 
 
 ## Swap the placeholder hull for an imported model: hide the box parts, tint "Accent"
@@ -132,6 +163,8 @@ func _install_model(path: String) -> void:
 
 
 func respawn(at: Transform3D = spawn_transform) -> void:
+	if is_eliminated:
+		return
 	global_transform = at
 	velocity = Vector3.ZERO
 	_up = at.basis.y
@@ -148,7 +181,117 @@ func pad_near() -> void:
 	pad_passed.emit()
 
 
+# --- Items ---------------------------------------------------------------------------
+
+## Called by an item pad. Returns true if the ship took the pickup (its slot was empty).
+func collect_item_pad() -> bool:
+	if item != Items.NONE or is_eliminated or finished:
+		return false
+	item_pad_hit.emit()
+	return true
+
+
+func give_item(new_item: int) -> void:
+	item = new_item
+	item_changed.emit()
+
+
+func use_item() -> void:
+	if item == Items.NONE or not controls_enabled or is_eliminated:
+		return
+	var used := item
+	item = Items.NONE
+	item_changed.emit()
+	match used:
+		Items.TURBO:
+			velocity += -global_transform.basis.z * boost_strength * 0.5
+			boost()
+		Items.SHIELD:
+			shield_time = shield_seconds
+	item_used.emit(used)
+
+
+## Trade the held item for energy instead of firing it.
+func absorb_item() -> void:
+	if item == Items.NONE or not controls_enabled or is_eliminated:
+		return
+	item = Items.NONE
+	energy = minf(energy + Items.ABSORB_ENERGY, max_energy)
+	item_changed.emit()
+	item_absorbed.emit()
+
+
+# --- Energy --------------------------------------------------------------------------
+
+## Returns true if the damage landed (false when shielded, finished or already out).
+## A named `weapon` also knocks speed off and spins the hull.
+func apply_damage(amount: float, by_name := "", weapon := "") -> bool:
+	if is_eliminated or finished:
+		return false
+	if shield_time > 0.0:
+		return false
+	if not invulnerable:
+		energy -= amount
+	if weapon != "":
+		velocity *= 0.55
+		_spin = 1.0
+		_immunity = 1.2
+		hit_taken.emit(amount, by_name, weapon)
+	if energy <= 0.0:
+		_eliminate()
+	return true
+
+
+## True for a moment after a weapon hit: projectiles pass through instead of stacking damage.
+func weapon_immune() -> bool:
+	return _immunity > 0.0
+
+
+func recharge(delta: float) -> void:
+	energy = minf(energy + recharge_rate * delta, max_energy)
+
+
+func _eliminate() -> void:
+	energy = 0.0
+	is_eliminated = true
+	controls_enabled = false
+	item = Items.NONE
+	velocity = Vector3.ZERO
+	body.visible = false
+	trail.emitting = false
+	engine_light.visible = false
+	$Headlight.visible = false
+	_shield_mesh.visible = false
+	set_deferred("collision_layer", 0)
+	set_deferred("collision_mask", 0)
+	Explosion.spawn(get_parent(), global_position, 2.2)
+	eliminated.emit()   # EngineAudio plays the blast
+
+
+func _make_shield_mesh() -> MeshInstance3D:
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.0
+	sphere.height = 2.0
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = Color(0.3, 0.8, 1.0, 0.16)
+	var mi := MeshInstance3D.new()
+	mi.mesh = sphere
+	mi.material_override = mat
+	mi.scale = Vector3(2.0, 1.1, 3.1)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = false
+	return mi
+
+
 func _physics_process(delta: float) -> void:
+	if is_eliminated:
+		return
+	shield_time = maxf(shield_time - delta, 0.0)
+	_immunity = maxf(_immunity - delta, 0.0)
 	if not controls_enabled:
 		throttle_in = 0.0
 		brake_in = 0.0
@@ -216,7 +359,9 @@ func _physics_process(delta: float) -> void:
 			if now - _last_ship_hit_ms > 300:
 				_last_ship_hit_ms = now
 				var other: Ship = c.get_collider()
-				ship_hit.emit(clampf((velocity - other.velocity).length() / max_speed, 0.1, 1.0))
+				var knock := clampf((velocity - other.velocity).length() / max_speed, 0.1, 1.0)
+				ship_hit.emit(knock)
+				apply_damage(knock * ship_hit_damage)
 		elif absf(c.get_normal().dot(_up)) < 0.5:
 			touching_wall = true
 	if touching_wall:
@@ -225,9 +370,12 @@ func _physics_process(delta: float) -> void:
 			velocity -= velocity * wall_scrape
 			if now - _last_wall_hit_ms > 250:
 				_last_wall_hit_ms = now
-				wall_hit.emit(clampf(speed / max_speed, 0.15, 1.0))
+				var impact := clampf(speed / max_speed, 0.15, 1.0)
+				wall_hit.emit(impact)
+				apply_damage(impact * wall_damage)
 		else:
 			velocity -= velocity * minf(scrape_drag * delta, 1.0)
+			apply_damage(scrape_damage * delta)
 	scraping = touching_wall
 
 	speed = (velocity - _up * velocity.dot(_up)).length()
@@ -239,7 +387,14 @@ func _update_visuals(lateral: float, delta: float) -> void:
 	# Roll into the turn, plus a bit extra when sliding sideways.
 	_bank = lerpf(_bank, steer_in * bank_angle + lateral * 0.01, minf(8.0 * delta, 1.0))
 	_pitch = lerpf(_pitch, _throttle * pitch_angle - brake_in * brake_dip, minf(5.0 * delta, 1.0))
-	body.rotation = Vector3(_pitch + (model_pitch_trim if model_path != "" else 0.0), 0.0, _bank)
+	# A weapon hit throws the hull into a decaying yaw wobble.
+	_spin *= exp(-3.5 * delta)
+	var spin_yaw := sin(_spin * 14.0) * _spin * 0.9
+	body.rotation = Vector3(_pitch + (model_pitch_trim if model_path != "" else 0.0), spin_yaw, _bank)
+	_shield_mesh.visible = shield_time > 0.0
+	if _shield_mesh.visible:
+		# Flicker out over the last second.
+		_shield_mesh.transparency = 0.0 if shield_time > 1.0 else (0.5 + 0.5 * sin(shield_time * 40.0)) * 0.8
 	_boost_vis *= exp(-1.8 * delta)
 	var glow := 0.4 + _throttle * 1.4 + _boost_vis * 1.5
 	_engine_mat.emission_energy_multiplier = glow

@@ -36,17 +36,20 @@ func to_highscores() -> void:
 	get_tree().change_scene_to_file("res://scenes/highscore.tscn")
 
 
-## Position points plus a bonus for beating the circuit's par time, plus a fast-lap bonus.
-static func score_for(track: Dictionary, position: int, race_time: float, best_lap: float, laps: int) -> Dictionary:
+## Position points, a bonus for beating the circuit's par time, a fast-lap bonus, and combat
+## points for weapon hits landed and rivals eliminated.
+static func score_for(track: Dictionary, position: int, race_time: float, best_lap: float, laps: int, hits := 0, kills := 0) -> Dictionary:
 	var pos_points: int = POSITION_POINTS[clampi(position - 1, 0, POSITION_POINTS.size() - 1)]
 	var par: float = track.get("par_lap", 30.0) * laps
 	var time_bonus := maxi(0, roundi((par - race_time) * 25.0))
 	var lap_bonus := 250 if best_lap > 0.0 and best_lap < track.get("par_lap", 30.0) * 0.97 else 0
+	var combat := hits * 75 + kills * 250
 	return {
 		"position": pos_points,
 		"time": time_bonus,
 		"lap": lap_bonus,
-		"total": pos_points + time_bonus + lap_bonus,
+		"combat": combat,
+		"total": pos_points + time_bonus + lap_bonus + combat,
 	}
 
 

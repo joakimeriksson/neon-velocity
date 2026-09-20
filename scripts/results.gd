@@ -27,7 +27,10 @@ func show_results(race: Node) -> void:
 	_panel.add_child(inner)
 
 	var r: Dictionary = Game.last_result
-	inner.add_child(UiTheme.glow_label("RACE COMPLETE", 48, UiTheme.NEON))
+	if r.get("eliminated", false):
+		inner.add_child(UiTheme.glow_label("ELIMINATED", 48, Color(1.0, 0.35, 0.3)))
+	else:
+		inner.add_child(UiTheme.glow_label("RACE COMPLETE", 48, UiTheme.NEON))
 	inner.add_child(UiTheme.label("%s  ·  %s" % [r.track, UiTheme.ordinal(r.position)], 30, UiTheme.PINK))
 	inner.add_child(UiTheme.label("Time %s     Best lap %s" % [UiTheme.fmt_time(r.time), UiTheme.fmt_time(r.best_lap)], 22))
 
@@ -38,6 +41,7 @@ func show_results(race: Node) -> void:
 	score_line.add_child(UiTheme.label("Position %d" % s.position, 20, UiTheme.DIM))
 	score_line.add_child(UiTheme.label("Time bonus %d" % s.time, 20, UiTheme.DIM))
 	score_line.add_child(UiTheme.label("Fast lap %d" % s.lap, 20, UiTheme.DIM))
+	score_line.add_child(UiTheme.label("Combat %d" % s.get("combat", 0), 20, UiTheme.DIM))
 	inner.add_child(score_line)
 	inner.add_child(UiTheme.glow_label("SCORE  %d" % s.total, 44, Color.WHITE))
 
@@ -64,7 +68,9 @@ func refresh() -> void:
 		_table.add_child(UiTheme.label(UiTheme.ordinal(_race._position_of(ship)), 20, col, HORIZONTAL_ALIGNMENT_RIGHT))
 		_table.add_child(UiTheme.label(ship.ship_name, 20, col, HORIZONTAL_ALIGNMENT_LEFT))
 		var t: String
-		if ship.get_meta("dnf", false):
+		if ship.is_eliminated:
+			t = "ELIMINATED"
+		elif ship.get_meta("dnf", false):
 			t = "DNF"
 		elif ship.finished:
 			t = UiTheme.fmt_time(ship.finish_time)

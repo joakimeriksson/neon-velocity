@@ -2,6 +2,8 @@ class_name Race
 extends Node3D
 
 ## Race flow: spawn the grid, count down, track laps and positions, finish.
+## Also the combat referee: hands out pickups, launches weapons, recharges ships in the pit
+## lane and handles eliminations.
 
 enum State { COUNTDOWN, RACING, FINISHED }
 
@@ -34,6 +36,8 @@ var _finish_order: Array[Ship] = []
 var _results: Results
 var _pause: PauseMenu
 var _player_finish_time := 0.0
+var _eliminated_at := {}   # Ship -> race_time
+var _log := OS.has_environment("AG_COMBAT_LOG")   ## print pickups, shots, hits and pit stops
 
 
 func _ready() -> void:
@@ -63,6 +67,13 @@ func _ready() -> void:
 			_rumble(0.6, strength * 0.7, 0.2)
 			camera.shake(strength * 0.6))
 		player.boosted.connect(func(): _rumble(0.9, 0.3, 0.45))
+		player.hit_taken.connect(func(_damage: float, by_name: String, weapon: String):
+			_rumble(1.0, 1.0, 0.5)
+			camera.shake(1.4)
+			hud.flash("%s HIT  -  %s" % [weapon, by_name.to_upper()], Color(1.0, 0.35, 0.3)))
+		player.item_changed.connect(func():
+			if player.item != Items.NONE:
+				Sfx.play("pickup"))
 
 	camera.target = player
 	camera._snap()
@@ -77,6 +88,7 @@ func _ready() -> void:
 		state = State.RACING
 		for ship in ships:
 			ship.controls_enabled = true
+			ship.invulnerable = true   # weapons fly on the title screen, but nobody is knocked out
 	else:
 		_pause = PauseMenu.new()
 		add_child(_pause)
@@ -124,8 +136,134 @@ func _spawn_ship(at: Transform3D, ship_name: String, color: Color, model := "", 
 	# Seed progress from the grid position so the first update isn't read as a reverse crossing.
 	ship.frame_hint = track.get_nearest_frame_index(at.origin)
 	ship.progress = float(ship.frame_hint) / float(track.frames.size())
+	ship.item_pad_hit.connect(func(): ship.give_item(Items.roll(_position_of(ship), ships.size())))
+	ship.item_used.connect(_on_item_used.bind(ship))
+	ship.eliminated.connect(_on_eliminated.bind(ship))
 	ships.append(ship)
 	return ship
+
+
+# --- Combat --------------------------------------------------------------------------
+
+func _on_item_used(item: int, ship: Ship) -> void:
+	var s := _track_s(ship)
+	if _log:
+		print("%6.1f  %-8s uses %s" % [race_time, ship.ship_name, Items.NAMES[item]])
+	match item:
+		Items.ROCKET:
+			_launch(Projectile.Kind.ROCKET, ship, s + 2.5, ship.track_lateral, maxf(ship.speed + 75.0, 125.0))
+			_play_for(ship, "rocket_fire")
+		Items.MISSILE:
+			var p := _launch(Projectile.Kind.MISSILE, ship, s + 2.5, ship.track_lateral, maxf(ship.speed + 50.0, 115.0))
+			p.target = _ship_ahead_of(ship, 320.0)
+			_play_for(ship, "missile_fire")
+		Items.MINE:
+			for k in 3:
+				_launch(Projectile.Kind.MINE, ship, s - 3.0 - k * 3.5, ship.track_lateral + randf_range(-2.5, 2.5), 0.0)
+			_play_for(ship, "mine_drop")
+		Items.SHIELD:
+			_play_for(ship, "shield_on")
+
+
+func _launch(kind: Projectile.Kind, ship: Ship, s: float, lateral: float, speed: float) -> Projectile:
+	var p := Projectile.new()
+	p.kind = kind
+	p.race = self
+	p.owner_ship = ship
+	p.s = s
+	p.lateral = lateral
+	p.speed = speed
+	add_child(p)
+	return p
+
+
+func _play_for(ship: Ship, sfx: String) -> void:
+	if ship.is_player:
+		Sfx.play(sfx, 1.0, 2.0)
+	else:
+		Sfx.play_at(sfx, ship.global_position, 1.0, 0.0, 30.0)
+
+
+## Fractional frame index of a ship along the lap.
+func _track_s(ship: Ship) -> float:
+	var f := track.frames[posmod(ship.frame_hint, track.frames.size())]
+	return ship.frame_hint + (ship.global_position - f.origin).dot(-f.basis.z) / track.step
+
+
+## Metres from `from` forward along the lap to `to` (always positive, wraps).
+func track_distance(from: Ship, to: Ship) -> float:
+	var n := track.frames.size()
+	return posmod(to.frame_hint - from.frame_hint, n) * track.step
+
+
+func _ship_ahead_of(ship: Ship, within: float) -> Ship:
+	var best: Ship = null
+	var best_d := within
+	for other in ships:
+		if other == ship or other.is_eliminated:
+			continue
+		var d := track_distance(ship, other)
+		if d > 1.0 and d < best_d:
+			best_d = d
+			best = other
+	return best
+
+
+func ship_behind(ship: Ship, within: float) -> Ship:
+	for other in ships:
+		if other != ship and not other.is_eliminated:
+			var d := track_distance(other, ship)
+			if d > 1.0 and d < within:
+				return other
+	return null
+
+
+func ship_ahead(ship: Ship, within: float) -> Ship:
+	return _ship_ahead_of(ship, within)
+
+
+## Called by a projectile when it reaches a ship.
+func report_hit(attacker: Ship, victim: Ship, weapon: String, landed: bool) -> void:
+	if _log:
+		print("%6.1f  %-8s %s -> %s  %s  (energy %.0f)" % [race_time, attacker.ship_name if is_instance_valid(attacker) else "?", weapon, victim.ship_name, "HIT" if landed else "blocked", victim.energy])
+	if not is_instance_valid(attacker) or attacker == victim:
+		return
+	if landed:
+		attacker.hits_landed += 1
+		if victim.is_eliminated:
+			attacker.kills += 1
+	if attacker == player and not Game.attract:
+		if not landed:
+			hud.flash("%s BLOCKED" % weapon, Items.COLORS[Items.SHIELD])
+		elif victim.is_eliminated:
+			hud.flash("%s ELIMINATED" % victim.ship_name.to_upper(), Color(1.0, 0.85, 0.3))
+		else:
+			hud.flash("%s HIT  -  %s" % [weapon, victim.ship_name.to_upper()], Color(0.5, 1.0, 0.5))
+
+
+func _on_eliminated(ship: Ship) -> void:
+	_eliminated_at[ship] = race_time
+	if _log:
+		print("%6.1f  %-8s ELIMINATED" % [race_time, ship.ship_name])
+	ship.finished = true
+	ship.finish_time = race_time
+	if ship != player or Game.attract:
+		return
+	state = State.FINISHED
+	_player_finish_time = race_time
+	_rumble(1.0, 1.0, 0.9)
+	camera.shake(2.0)
+	var def := TrackDefs.ALL[Game.track_index]
+	Game.last_result = {
+		"track": def.name,
+		"position": _position_of(player),
+		"time": race_time,
+		"best_lap": player.best_lap if player.best_lap < INF else 0.0,
+		"eliminated": true,
+		"score": {"position": 0, "time": 0, "lap": 0, "combat": 0, "total": 0},
+	}
+	hud.center_text = "ELIMINATED"
+	get_tree().create_timer(2.2).timeout.connect(_show_results)
 
 
 func _process(delta: float) -> void:
@@ -170,13 +308,20 @@ func _update_ship(ship: Ship, delta: float) -> void:
 	ship.lap_time += delta
 	var idx := track.get_nearest_frame_index(ship.global_position, ship.frame_hint)
 	ship.frame_hint = idx
+	ship.track_lateral = track.get_lateral(ship.global_position, idx)
+	ship.recharging = ship.energy < ship.max_energy and track.in_pit(idx, ship.track_lateral)
+	if ship.recharging:
+		if _log and not ship.get_meta("pit_logged", false):
+			print("%6.1f  %-8s enters pit lane (energy %.0f)" % [race_time, ship.ship_name, ship.energy])
+		ship.recharge(delta)
+	ship.set_meta("pit_logged", ship.recharging)
 	var progress := float(idx) / float(track.frames.size())
 	# Crossing the line: progress wraps from the last tenth to the first tenth.
 	if ship.progress > 0.9 and progress < 0.1:
 		if ship.lap > 0:
 			ship.best_lap = minf(ship.best_lap, ship.lap_time)
 		if ship.lap > 0:
-			print("%s  lap %d  %.3f" % [ship.ship_name, ship.lap, ship.lap_time])
+			print("%s  lap %d  %.3f  energy %.0f" % [ship.ship_name, ship.lap, ship.lap_time, ship.energy])
 		ship.lap += 1
 		ship.lap_time = 0.0
 		if ship.lap > laps:
@@ -204,7 +349,7 @@ func _finish(ship: Ship) -> void:
 			"position": position,
 			"time": race_time,
 			"best_lap": player.best_lap if player.best_lap < INF else 0.0,
-			"score": Game.score_for(def, position, race_time, player.best_lap, laps),
+			"score": Game.score_for(def, position, race_time, player.best_lap, laps, player.hits_landed, player.kills),
 		}
 		hud.center_text = "FINISHED  %s" % _ordinal(position)
 		get_tree().create_timer(1.6).timeout.connect(_show_results)
@@ -237,13 +382,22 @@ func _rumble(weak: float, strong: float, duration: float) -> void:
 		Input.start_joy_vibration(pad, weak, strong, duration)
 
 
+## Finishers in finishing order, then everyone still racing (or timed out) by distance
+## covered, then eliminated ships, the last one standing ranked highest.
+func _rank_key(ship: Ship) -> float:
+	if _eliminated_at.has(ship):
+		return -1000000.0 + _eliminated_at[ship]
+	var order := _finish_order.find(ship)
+	if order >= 0:
+		return 1000000.0 - order
+	return ship.lap + ship.progress
+
+
 func _position_of(ship: Ship) -> int:
-	if ship.finished:
-		return _finish_order.find(ship) + 1
-	var pos := _finish_order.size() + 1
-	var score := ship.lap + ship.progress
+	var key := _rank_key(ship)
+	var pos := 1
 	for other in ships:
-		if other != ship and not other.finished and other.lap + other.progress > score:
+		if other != ship and _rank_key(other) > key:
 			pos += 1
 	return pos
 

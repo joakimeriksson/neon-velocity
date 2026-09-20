@@ -7,7 +7,7 @@ const CREDITS := [
 	["A game by", "Joakim Eriksson", ""],
 	["Design, code, circuits, HUD", "Joakim Eriksson with Claude Code", "Claude Fable 5.1, Anthropic"],
 	["Ship models", "Codex Astra", "five anti-gravity craft, from a concept sheet to glTF"],
-	["Music", "ACE-Step 1.5 on an NVIDIA DGX Spark", "prompted with Claude Code, every track picked by ear"],
+	["Music", "ACE-Step 1.5 XL on an NVIDIA DGX Spark", "open-weight music model, MIT licence. Prompted with Claude Code, every track picked by ear"],
 	["Sound", "gamesynth", "a Rust synthesiser by Joakim Eriksson, built with Claude Code. Engines, impacts and explosions are synthesised live; there are no samples"],
 	["Engine", "Godot Engine 4.7", "(c) Juan Linietsky, Ariel Manzur and contributors, MIT licence. godot-rust, MPL 2.0"],
 	["Type", "Saira Condensed", "Omnibus-Type, SIL Open Font Licence"],

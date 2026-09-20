@@ -47,6 +47,10 @@ The extension also builds to WebAssembly for the web export (single-threaded, `n
 
 ### Music (2026-09-20)
 
+All nine were generated on the DGX Spark with ACE-Step 1.5 (checkpoint `acestep-v15-xl-sft`, language model
+`acestep-5Hz-lm-4B`, MIT licence), verified from the Spark's generation logs. `tools/music/generate.py` in this
+repo is the older ACE-Step v1 script; the 1.5 script lives on the Spark as `~/music-gen/generate15.py`.
+
 Nine tracks, picked by ear from 20 candidates with `tools/music/previews/picker/index.html` (git-ignored):
 `intro_ion_drift` (ACE-Step 1.5) on the title screen, and `afrodnb1-4` (afro drum and bass) plus `fire1-4`
 (big beat punk) shuffled during races. `Music.INTRO` and `Music.RACE` in `scripts/music.gd` are the two

@@ -4,6 +4,8 @@ var player: Ship
 var laps := 3
 var center_text := ""
 var position_text := ""
+## Set by Race each frame: "" or "RIGHT"/"LEFT" when the pit lane entry is coming up.
+var pit_ahead := ""
 
 var _speed_label: Label
 var _lap_label: Label
@@ -30,23 +32,16 @@ func _ready() -> void:
 	_help_label.text = "W/S or Up/Down  thrust / brake\nA/D or Left/Right  steer\nQ / E  airbrakes\nSpace / Square  fire     F / Circle  absorb\nR / Triangle  respawn   Esc / Options  pause"
 	_help_label.modulate = Color(1, 1, 1, 0.6)
 
-	# Weapon hits and kills, upper middle of the screen.
-	_flash_label = _make_label(40, Control.PRESET_CENTER_TOP, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_END)
-	_flash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_flash_label.offset_top = 150.0
-
-	# Bottom left: item slot, then the energy bar with its status line.
+	# Top centre, where the eyes already are: energy bar, item slot, status line, then
+	# weapon hit / kill messages underneath.
 	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 24)
-	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	box.add_theme_constant_override("separation", 6)
+	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 20)
+	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	box.alignment = BoxContainer.ALIGNMENT_BEGIN
+	box.add_theme_constant_override("separation", 4)
 	add_child(box)
-	_item_label = _styled_label(34)
-	box.add_child(_item_label)
-	_status_label = _styled_label(20)
-	box.add_child(_status_label)
 	_energy_bar = ProgressBar.new()
-	_energy_bar.custom_minimum_size = Vector2(360, 22)
+	_energy_bar.custom_minimum_size = Vector2(660, 34)
 	_energy_bar.show_percentage = false
 	_energy_bar.max_value = 100.0
 	var back := StyleBoxFlat.new()
@@ -58,9 +53,20 @@ func _ready() -> void:
 	_energy_bar.add_theme_stylebox_override("background", back)
 	_energy_bar.add_theme_stylebox_override("fill", _energy_fill)
 	box.add_child(_energy_bar)
-	_energy_label = _styled_label(18)
-	_energy_label.text = "ENERGY"
-	box.add_child(_energy_label)
+	_energy_label = _styled_label(24)
+	_energy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_energy_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_energy_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_energy_bar.add_child(_energy_label)
+	_item_label = _styled_label(40)
+	_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_item_label)
+	_status_label = _styled_label(34)
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_status_label)
+	_flash_label = _styled_label(40)
+	_flash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_flash_label)
 
 
 func _process(delta: float) -> void:
@@ -79,6 +85,7 @@ func _process(delta: float) -> void:
 func _update_combat(delta: float) -> void:
 	var ratio := player.energy / player.max_energy
 	_energy_bar.value = ratio * 100.0
+	_energy_label.text = "ENERGY  %d" % ceili(ratio * 100.0)
 	var low := ratio < 0.25 and not player.is_eliminated
 	var color := Color(0.2, 1.0, 0.65)
 	if ratio < 0.5:
@@ -106,9 +113,13 @@ func _update_combat(delta: float) -> void:
 	elif player.shield_time > 0.0:
 		_status_label.text = "SHIELD %.1f" % player.shield_time
 		_status_label.modulate = Items.COLORS[Items.SHIELD]
+	elif pit_ahead != "" and ratio < 0.6:
+		# The moment it matters: say where to go, and blink so it can't be missed.
+		_status_label.text = "PIT LANE AHEAD  -  KEEP %s" % pit_ahead
+		_status_label.modulate = Color(0.2, 1.0, 0.65, 1.0 if fmod(_t, 0.4) < 0.28 else 0.35)
 	elif low:
-		_status_label.text = "LOW ENERGY  -  PIT LANE BEFORE THE LINE"
-		_status_label.modulate = Color(1.0, 0.3, 0.25)
+		_status_label.text = "ENERGY LOW  -  PIT BEFORE THE START LINE"
+		_status_label.modulate = Color(1.0, 0.3, 0.25, 1.0 if fmod(_t, 0.5) < 0.3 else 0.4)
 		_beep_time -= delta
 		if _beep_time <= 0.0 and player.controls_enabled:
 			_beep_time = 0.9

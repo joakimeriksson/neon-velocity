@@ -443,6 +443,17 @@ func _add_pit_lane() -> void:
 			_edge(i, lo, 0.04), _edge(i, hi, 0.04), _edge(i + 1, hi, 0.04), _edge(i + 1, lo, 0.04),
 			up0, up0, up1, up1, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
 	_add_mesh(st.commit(), _pit_mat, false)
+	# A green bar over the lane's entry and exit, so the lane can be found at speed.
+	for i in [start, end]:
+		var f := frames[i % n]
+		var beam := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(1.0, 0.4, 0.4)
+		beam.mesh = box
+		beam.material_override = _pit_mat
+		var width := track_width * 0.2
+		beam.transform = Transform3D(Basis(f.basis.x * width, f.basis.y, f.basis.z), f.origin + f.basis.x * side * track_width * 0.39 + f.basis.y * 4.5)
+		add_child(beam)
 
 
 ## Artificial lighting along `lit_sections`: lamp poles on alternating sides every 24 m,

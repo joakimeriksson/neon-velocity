@@ -75,6 +75,11 @@ func _ready() -> void:
 			if player.item != Items.NONE:
 				Sfx.play("pickup"))
 
+	# Dev: AG_ENERGY=40 starts every ship at that energy, to exercise pit stops and warnings.
+	if OS.has_environment("AG_ENERGY"):
+		for ship in ships:
+			ship.energy = float(OS.get_environment("AG_ENERGY"))
+
 	camera.target = player
 	camera._snap()
 	Music.attach_ship(player)
@@ -298,6 +303,13 @@ func _process(delta: float) -> void:
 	if state != State.FINISHED and Input.is_action_just_pressed("reset") and not _pause.visible:
 		player.respawn(track.get_respawn_transform(player.global_position))
 	hud.position_text = "%s / %d" % [_ordinal(_position_of(player)), ships.size()]
+	# Warn from about 300 m before the pit lane until its end.
+	var lead := 300.0 / (track.frames.size() * track.step)
+	var pit_start: float = track.pit_lane[0]
+	var pit_end: float = track.pit_lane[1]
+	var pit_side: float = track.pit_lane[2]
+	var approaching := player.progress > pit_start - lead and player.progress < pit_end - 0.01
+	hud.pit_ahead = ("RIGHT" if pit_side > 0.0 else "LEFT") if approaching else ""
 
 
 func _update_ship(ship: Ship, delta: float) -> void:

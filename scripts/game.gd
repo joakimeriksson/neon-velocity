@@ -14,8 +14,26 @@ var last_result := {}
 
 
 func _ready() -> void:
+	_fit_window_to_screen()
 	if OS.has_environment("AG_TRACK"):
 		track_index = clampi(int(OS.get_environment("AG_TRACK")), 0, TrackDefs.ALL.size() - 1)
+
+
+## The project window is 1920x1080 pixels, which on a Retina display is a 960x540-point
+## window with a HUD too small to read. Grow it to most of the screen, keeping 16:9.
+func _fit_window_to_screen() -> void:
+	if OS.has_feature("web") or OS.has_feature("movie") or DisplayServer.get_name() == "headless":
+		return
+	var window := get_window()
+	if window.mode != Window.MODE_WINDOWED or DisplayServer.screen_get_scale() < 1.5:
+		return
+	var usable := DisplayServer.screen_get_usable_rect()
+	var height := int(minf(usable.size.y * 0.9, usable.size.x * 0.9 * 9.0 / 16.0))
+	var size := Vector2i(height * 16 / 9, height)
+	if size.x <= window.size.x:
+		return
+	window.size = size
+	window.position = usable.position + (usable.size - size) / 2
 
 
 func start_race(index: int) -> void:

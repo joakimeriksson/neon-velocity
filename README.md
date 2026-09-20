@@ -64,6 +64,7 @@ Check that no circuit folds back on itself, and that both walls actually stop a 
     godot --headless --path . -s tools/check_tracks.gd
     godot --headless --path . -s tools/check_walls.gd
 
+`AG_ENERGY=40` starts every ship at that energy (pit stops, low-energy warnings).
 `AG_COMBAT_LOG=1` prints every pickup use, hit, pit entry and elimination with race time, for balancing in a headless sim.
 `AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone; `AG_NO_EXHAUST=1` hides the
 afterburners. `tools/flame_test.tscn` is a side-view rig for tuning the exhaust:

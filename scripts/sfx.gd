@@ -35,7 +35,10 @@ const GENERATORS := {
 }
 const RATE := 44100
 
-@export var volume_db := -10.0
+@export var volume_db := -14.0
+## Positional events belong to other ships unless the caller says otherwise; four rivals
+## whooshing, landing and trading paint would otherwise bury the music and the player's own sounds.
+@export var others_db := -7.0
 ## Most effect players alive at once. Past this, other ships' positional sounds are dropped;
 ## the player's own always play.
 @export var max_voices := 36
@@ -117,7 +120,7 @@ func play(name: String, pitch := 1.0, db := 0.0, power := 1.0) -> void:
 
 
 ## Positional, in the 3D world. `unit_size` is the distance at which falloff starts.
-func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size := 12.0, power := 1.0) -> void:
+func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size := 12.0, power := 1.0, own := false) -> void:
 	if get_child_count() >= max_voices:
 		return
 	var stream := _stream_for(name)
@@ -127,7 +130,7 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size
 	var camera := get_viewport().get_camera_3d()
 	var far := camera.global_position.distance_to(position) / 300.0 if camera else 0.0
 	_shape(name, stream, power, far)
-	db += _levels.get(name, 0.0)
+	db += _levels.get(name, 0.0) + (0.0 if own else others_db)
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"SFX"
 	p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM  # synthesised streams can't be browser samples
@@ -135,7 +138,7 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size
 	p.pitch_scale = pitch
 	p.volume_db = volume_db + db
 	p.unit_size = unit_size
-	p.max_db = 3.0
+	p.max_db = 0.0   # never louder than its set level, however close
 	p.max_distance = 600.0
 	p.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
 	p.finished.connect(p.queue_free)
@@ -143,6 +146,17 @@ func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size
 	p.global_position = position
 	p.play()
 	_expire(p, stream)
+
+
+## gamesynth's one-shots go silent when they end but keep filling the buffer, so Godot never
+## sees them finish and `finished` never fires. Ask the playback directly and free the player.
+func _process(_delta: float) -> void:
+	for p in get_children():
+		if p.is_queued_for_deletion() or not p.has_method("get_stream_playback") or not p.playing:
+			continue
+		var playback: AudioStreamPlayback = p.get_stream_playback()
+		if playback and playback.has_method("is_playing") and not playback.is_playing():
+			p.queue_free()
 
 
 ## Safety net: whatever the stream does, a one-shot's player is gone shortly after its length.

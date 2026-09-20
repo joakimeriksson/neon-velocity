@@ -45,6 +45,27 @@ binary into `addons/gamesynth/bin/`. With it loaded:
 
 The extension also builds to WebAssembly for the web export (single-threaded, `nothreads` feature).
 
+### The mix (2026-09-20)
+
+Measured, not guessed: `tools/mix_probe.tscn` records every bus to its own WAV during an autopilot race (headless,
+real time) and with `MIX_SPLIT=1` splits the effects bus by source and tallies which events played and how loud
+they arrived. Target: **music 3 LU above everything else combined**, master under 0 dBFS.
+
+    MIX_SPLIT=1 MIX_OUT=/tmp/mix AG_AUTOPILOT=1 godot --headless --max-fps 60 --path . tools/mix_probe.tscn
+    ffmpeg -i /tmp/mix/music.wav -af ebur128 -f null - 2>&1 | grep "I:" | tail -1
+
+Where it started: music -16.4 LUFS against -9.0 for the rest (7.4 LU under), master clipping at +1.8 dBFS. The
+cause was the one-shot events at -8.8 LUFS on their own: every AI ship rang every boost-pad bell (26 six-second
+bells in 45 s, full level within 60 m), plus four rivals' whooshes, landings and contacts.
+Now: music about -12 LUFS, engines -17, events -17.5, ambience -23; music 2.8 to 3.9 LU above the rest.
+The knobs: `Music.volume_db` (+1.5), `EngineAudio.master_db` (-10.5), `Sfx.volume_db` (-14), `Sfx.others_db`
+(-7, applied to every positional event that isn't the player's own), the pad bell's levels in
+`engine_audio.gd:_on_boost`, rain and wind in `ambience.gd`, and a hard limiter on Master (`settings.gd`).
+Settings sliders at 80 are this mix.
+
+gamesynth one-shots never report the end to Godot (their `mix` keeps returning full buffers of silence, so
+`finished` never fires); `Sfx._process` asks each playback `is_playing()` and frees the player itself.
+
 ### Music (2026-09-20)
 
 All nine were generated on the DGX Spark with ACE-Step 1.5 (checkpoint `acestep-v15-xl-sft`, language model

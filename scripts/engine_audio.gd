@@ -11,7 +11,7 @@ extends Node3D
 ## res://audio/engine/<name>.wav) pitched and mixed by the same inputs.
 
 @export var enabled := true
-@export var master_db := -6.0
+@export var master_db := -10.5
 @export var jet_preset := "Racer"   ## Racer, Heavy, Turbine, Scramjet
 ## Per-ship parameter overrides applied on top of the preset, e.g. {"whine/hz": 1400.0}.
 @export var jet_tweaks := {}
@@ -198,7 +198,8 @@ func _on_pad_passed() -> void:
 ## Actually over the pad: the bell rings at the pad and the engine surges.
 func _on_boost() -> void:
 	_boost_env = 1.0
-	Sfx.play_at("pad_bell", ship.global_position, randf_range(0.96, 1.04), 0.0 if ship.is_player else -3.0, 60.0)
+	# Every ship rings every pad, so other ships' bells are kept well down and local.
+	Sfx.play_at("pad_bell", ship.global_position, randf_range(0.96, 1.04), -7.0 if ship.is_player else -16.0, 25.0, 1.0, ship.is_player)
 
 
 func _on_wall_hit(strength: float) -> void:

@@ -14,12 +14,12 @@ var _recharge
 
 func setup(p_race: Race, env: Dictionary) -> void:
 	race = p_race
-	if not ClassDB.class_exists("SoundGenerator"):
+	if not ClassDB.class_exists("SoundGenerator") or OS.has_environment("AG_NO_AMBIENCE"):
 		set_process(false)
 		return
 	if env.get("rain", false):
-		_rain = _start("rain", "", -13.0)
-	_wind = _start("wind", "", -11.0)
+		_rain = _start("rain", "", -16.0)
+	_wind = _start("wind", "", -14.0)
 	_recharge = _start("res://audio/models/recharge.toml", "", -5.0)
 
 

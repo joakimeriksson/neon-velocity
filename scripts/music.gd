@@ -13,7 +13,7 @@ const INTRO := ["intro_"]
 const RACE := ["afrodnb", "fire"]
 const SILENT_DB := -60.0
 
-@export var volume_db := -3.0
+@export var volume_db := 1.5   ## tracks are mastered to -14 LUFS / -1 dBTP; the master limiter takes the odd peak
 @export var crossfade_time := 3.0
 
 @export_group("Speed response")

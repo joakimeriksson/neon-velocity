@@ -28,6 +28,10 @@ var _dirty := false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_ensure_engines_bus()
+	# Five engines, explosions and music can add up past full scale; catch it before it clips.
+	var limiter := AudioEffectHardLimiter.new()
+	limiter.ceiling_db = -1.0
+	AudioServer.add_bus_effect(0, limiter)
 	_values = DEFAULTS.duplicate()
 	var file := ConfigFile.new()
 	if file.load(PATH) == OK:

@@ -23,6 +23,9 @@ var speed := 150.0      ## m/s along the track
 
 var _age := 0.0
 var _mesh: MeshInstance3D
+var _voice: AudioStreamPlayer3D
+var _voice_pb   # SoundGeneratorPlayback
+var _voice_check := 0.0
 
 
 func _ready() -> void:
@@ -66,6 +69,7 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
+	_update_voice(delta)
 	if kind == Kind.MINE:
 		var pulse := 0.8 + 0.2 * sin(_age * 9.0)
 		_mesh.scale = Vector3.ONE * pulse
@@ -88,6 +92,49 @@ func _physics_process(delta: float) -> void:
 			return
 
 
+## A rocket carries its motor sound with it (Godot's doppler does the fly-by); an armed mine
+## ticks faster the closer a ship gets. Only weapons near the player get a voice.
+func _update_voice(delta: float) -> void:
+	if not ClassDB.class_exists("SoundGenerator") or Game.attract:
+		return
+	_voice_check -= delta
+	if _voice_check > 0.0 and _voice == null:
+		return
+	var listener := race.player
+	var away := global_position.distance_to(listener.global_position)
+	if _voice == null:
+		_voice_check = 0.4
+		if away > 160.0:
+			return
+		var gen = ClassDB.class_call_static("SoundGenerator", "from_file", "res://audio/models/%s.toml" % ("mine_armed" if kind == Kind.MINE else "rocket_flight"))
+		if gen == null or gen.get_error() != "":
+			return
+		_voice = AudioStreamPlayer3D.new()
+		_voice.stream = gen
+		_voice.bus = &"SFX"
+		_voice.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
+		_voice.unit_size = 10.0
+		_voice.max_distance = 220.0
+		_voice.volume_db = -6.0
+		_voice.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
+		add_child(_voice)
+		_voice.play()
+		_voice_pb = _voice.get_stream_playback()
+	elif away > 220.0:
+		_voice.queue_free()
+		_voice = null
+		_voice_pb = null
+		return
+	if kind == Kind.MINE:
+		var nearest := INF
+		for ship in race.ships:
+			if not ship.is_eliminated:
+				nearest = minf(nearest, ship.global_position.distance_to(global_position))
+		_voice_pb.set_inputs({"proximity": clampf(1.0 - nearest / 45.0, 0.0, 1.0)})
+	else:
+		_voice_pb.set_inputs({"thrust": 0.9, "proximity": clampf(1.0 - away / 80.0, 0.0, 1.0)})
+
+
 func _place() -> void:
 	global_transform = race.track.get_point(s, lateral, 1.1 if kind != Kind.MINE else 0.7)
 
@@ -96,7 +143,11 @@ func _hit(ship: Ship) -> void:
 	var landed := ship.apply_damage(DAMAGE[kind], owner_ship.ship_name if is_instance_valid(owner_ship) else "", WEAPON_NAMES[kind])
 	if landed:
 		Explosion.spawn(race, global_position, 1.0, COLOR[kind])
-		Sfx.play_at("explosion", global_position, randf_range(0.9, 1.1), 4.0 if ship.is_player else 0.0, 40.0)
+		var blast := "mine_blast" if kind == Kind.MINE else "explosion"
+		if ship.is_player:
+			Sfx.play(blast)
+		else:
+			Sfx.play_at(blast, global_position, 1.0, 0.0, 40.0)
 	else:
 		# Absorbed by a shield.
 		Explosion.spawn(race, global_position, 0.5, Items.COLORS[Items.SHIELD])

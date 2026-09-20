@@ -107,10 +107,12 @@ func _update_status(delta: float) -> void:
 	if player.recharging:
 		status_text = "Recharging"
 		status_color = HudCanvas.GREEN
-		_tick_time -= delta
-		if _tick_time <= 0.0:
-			_tick_time = 0.22
-			Sfx.play("recharge", 0.8 + ratio * 0.8, -6.0)
+		# Without gamesynth's recharge hum (Ambience), tick instead.
+		if not ClassDB.class_exists("SoundGenerator"):
+			_tick_time -= delta
+			if _tick_time <= 0.0:
+				_tick_time = 0.22
+				Sfx.play("recharge", 0.8 + ratio * 0.8, -6.0)
 	elif player.shield_time > 0.0:
 		status_text = "Shield  %.1f" % player.shield_time
 		status_color = Color("8fd6ff")

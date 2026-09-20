@@ -32,6 +32,9 @@ var _exhaust_high: AudioStreamPlayer3D
 var _hiss: AudioStreamPlayer3D
 var _scrape: AudioStreamPlayer3D
 var _scrape_gain := 0.0
+var _scrape_pb   # SoundGeneratorPlayback when gamesynth provides the scrape
+var _was_airbraking := false
+var _airbrake_quiet := 0.0
 var _impact: AudioStreamPlayer3D
 
 var _jet: AudioStreamPlayer3D
@@ -60,22 +63,22 @@ func _ready() -> void:
 		if impact > 6.0:
 			var strength := clampf(impact / 28.0, 0.2, 1.0)
 			if ship.is_player:
-				Sfx.play("wall_hit", 0.6, -6.0 + strength * 10.0)
+				Sfx.play("landing", 1.0, -2.0 + strength * 4.0, strength)
 			else:
-				Sfx.play_at("wall_hit", ship.global_position, 0.6, -10.0 + strength * 10.0))
+				Sfx.play_at("landing", ship.global_position, 1.0, -6.0 + strength * 4.0, 20.0, strength))
 	ship.item_absorbed.connect(func():
 		if ship.is_player:
-			Sfx.play("recharge", 1.3, 0.0))
+			Sfx.play("absorb"))
 	ship.wall_hit.connect(_on_wall_hit)
 	ship.ship_hit.connect(func(strength: float):
 		_duck = maxf(_duck, 0.6)
 		if ship.is_player:
-			Sfx.play("ship_hit", 0.9 + strength * 0.3, 0.0 + strength * 8.0)
+			Sfx.play("ship_hit", 1.0, 0.0 + strength * 4.0, strength)
 		else:
-			Sfx.play_at("ship_hit", ship.global_position, 0.9 + strength * 0.3, -8.0 + strength * 10.0))
+			Sfx.play_at("ship_hit", ship.global_position, 1.0, -6.0 + strength * 4.0, 12.0, strength))
 	# Airbrake hiss stays a loop in both modes; the jet has no airbrake layer.
 	_hiss = _make_player("exhaust_high", _gen_noise_high)
-	_scrape = _make_player("scrape", _gen_scrape)
+	_scrape = _make_scrape()
 	if has_jet_engine():
 		_jet = AudioStreamPlayer3D.new()
 		_jet.stream = ClassDB.class_call_static("JetEngineStream", "from_preset", jet_preset)
@@ -105,9 +108,21 @@ func _process(delta: float) -> void:
 	_hiss_gain = lerpf(_hiss_gain, 1.0 if airbraking else 0.0, minf((12.0 if airbraking else 4.0) * delta, 1.0))
 	_hiss.pitch_scale = 1.4
 	_set_gain(_hiss, _hiss_gain * (0.15 + speed_ratio * 0.3))
-	_scrape_gain = lerpf(_scrape_gain, 1.0 if ship.scraping else 0.0, minf((25.0 if ship.scraping else 8.0) * delta, 1.0))
-	_scrape.pitch_scale = 0.8 + speed_ratio * 0.6
-	_set_gain(_scrape, _scrape_gain * (0.2 + speed_ratio * 0.7))
+	if _scrape_pb:
+		# gamesynth's hull-on-wall model: how hard it's pressed and how fast it's sliding.
+		_scrape_pb.set_inputs({"pressure": (0.45 + 0.55 * speed_ratio) if ship.scraping else 0.0, "speed": minf(speed_ratio, 1.0)})
+	else:
+		_scrape_gain = lerpf(_scrape_gain, 1.0 if ship.scraping else 0.0, minf((25.0 if ship.scraping else 8.0) * delta, 1.0))
+		_scrape.pitch_scale = 0.8 + speed_ratio * 0.6
+		_set_gain(_scrape, _scrape_gain * (0.2 + speed_ratio * 0.7))
+	_airbrake_quiet -= delta
+	if airbraking and not _was_airbraking and _airbrake_quiet <= 0.0:
+		_airbrake_quiet = 0.8   # the AI feathers its airbrakes; one deploy sound is enough
+		if ship.is_player:
+			Sfx.play("airbrake", 1.0, 0.0, 0.4 + 0.6 * speed_ratio)
+		else:
+			Sfx.play_at("airbrake", ship.global_position, 1.0, -4.0, 12.0, 0.4 + 0.6 * speed_ratio)
+	_was_airbraking = airbraking
 
 	_duck *= exp(-5.0 * delta)
 	if _jet_pb:
@@ -138,8 +153,26 @@ func _process(delta: float) -> void:
 			_impact.stop()
 
 
+func _make_scrape() -> AudioStreamPlayer3D:
+	if not ClassDB.class_exists("SoundGenerator"):
+		return _make_player("scrape", _gen_scrape)
+	var gen = ClassDB.class_call_static("SoundGenerator", "create", "scrape")
+	gen.preset = "Heavy hull"
+	var p := AudioStreamPlayer3D.new()
+	p.stream = gen
+	_configure_3d(p)
+	p.volume_db = master_db + 2.0
+	add_child(p)
+	p.play()
+	_scrape_pb = p.get_stream_playback()
+	return p
+
+
 func _on_eliminated() -> void:
-	Sfx.play_at("explosion", ship.global_position, 0.6, 6.0, 60.0)
+	if ship.is_player:
+		Sfx.play("explosion_big")
+	else:
+		Sfx.play_at("explosion_big", ship.global_position, 1.0, 0.0, 60.0)
 	set_process(false)
 	for child in get_children():
 		if child is AudioStreamPlayer3D:
@@ -171,11 +204,13 @@ func _on_wall_hit(strength: float) -> void:
 	_duck = 1.0
 	if ship.is_player:
 		# The player's own hit: straight to the mix, loud, no distance falloff.
-		Sfx.play("wall_hit", 0.85 + strength * 0.3, 6.0 + strength * 6.0)
+		Sfx.play("wall_hit", 1.0, 2.0 + strength * 4.0, strength)
 	else:
-		Sfx.play_at("wall_hit", ship.global_position, 0.85 + strength * 0.3, -6.0 + strength * 10.0)
+		Sfx.play_at("wall_hit", ship.global_position, 1.0, -6.0 + strength * 6.0, 12.0, strength)
 	# The clang stays on the wall where it happened.
-	Sfx.play_at("wall_clang", ship.global_position, 0.9 + strength * 0.25, (2.0 if ship.is_player else -4.0) + strength * 6.0, 30.0)
+	# With gamesynth's layered impact the extra ring-out only muddies it; keep it for the fallback.
+	if not ClassDB.class_exists("SoundGenerator"):
+		Sfx.play_at("wall_clang", ship.global_position, 0.9 + strength * 0.25, (2.0 if ship.is_player else -4.0) + strength * 6.0, 30.0)
 	if _impact:
 		_impact_env = clampf(strength * 1.2, 0.2, 1.0)
 		_impact.pitch_scale = 0.6

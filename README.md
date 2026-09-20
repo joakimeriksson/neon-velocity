@@ -56,7 +56,7 @@ focused circuit's outline (`scripts/track_preview.gd`).
 - `scripts/ship.gd` — hover controller: raycast hover spring, thrust/drag, lateral grip, airbrakes, boost, wall scrape. Reads inputs a driver child writes. All tuning exported.
 - `scripts/player_driver.gd` — keyboard/gamepad → ship.
 - `scripts/engine_audio.gd` — per-ship engine sound on a positional player with Doppler. Uses the gamesynth `JetEngineStream` (procedural turbine driven by throttle/boost/speed/damage) when the extension is present, else synthesised loops.
-- `scripts/sfx.gd` — one-shots: a WAV in `audio/sfx/` wins, else a gamesynth `SynthStream` preset, else silence.
+- `scripts/sfx.gd` — one-shots: a WAV in `audio/sfx/` wins, else a gamesynth event generator shaped by power and distance, else a hand-made patch, else a built-in WAV. `scripts/ambience.gd` — rain, wind and the pit-lane recharge hum. See `AUDIO.md`.
 - `addons/gamesynth/` — the [gamesynth](../gamesynth) GDExtension (Rust). Binary is gitignored; rebuild and copy it with `tools/sync_gamesynth.sh`.
 - `scripts/ai_driver.gd` — follows the centre line (with a lane offset), airbrakes into corners; `skill` scales top speed.
 - `scripts/race.gd` — spawns the grid (4 AI + player), countdown, laps, positions, finish, results, pause, rumble; also the combat referee (pickups, launches, pit recharge, eliminations).
@@ -128,6 +128,13 @@ All music tracks are included in the web build.
 
     godot --headless --path . --export-release "Web" build/web/index.html
     python3 tools/serve_web.py 8060      # then open http://127.0.0.1:8060/index.html
+
+Smoke test without a visible browser (boots it, starts a race, saves the console and two screenshots).
+`--mute-audio` matters: otherwise the invisible browser plays the game through your speakers.
+
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --mute-audio \
+        --remote-debugging-port=9222 --use-angle=swiftshader --enable-unsafe-swiftshader about:blank &
+    node tools/web_smoke.mjs http://127.0.0.1:8060/index.html out/web_smoke
 
 Export templates for 4.7.2 must be installed first (`~/Library/Application Support/Godot/export_templates/4.7.2.stable/`).
 

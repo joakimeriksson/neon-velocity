@@ -87,6 +87,11 @@ func _ready() -> void:
 		for ship in ships:
 			ship.energy = float(OS.get_environment("AG_ENERGY"))
 
+	if not Game.attract:
+		var ambience := Ambience.new()
+		add_child(ambience)
+		ambience.setup(self, def.get("env", TrackDefs.NIGHT_RAIN))
+
 	camera.target = player
 	camera._snap()
 	Music.attach_ship(player)
@@ -175,12 +180,17 @@ func _on_item_used(item: int, ship: Ship) -> void:
 			var p := _launch(Projectile.Kind.MISSILE, ship, s + 2.5, ship.track_lateral, maxf(ship.speed + 50.0, 115.0))
 			p.target = _ship_ahead_of(ship, 320.0)
 			_play_for(ship, "missile_fire")
+			if p.target == player and not Game.attract:
+				Sfx.play("lock_on")
+				hud.flash("Missile incoming", HudCanvas.RED)
 		Items.MINE:
 			for k in 3:
 				_launch(Projectile.Kind.MINE, ship, s - 3.0 - k * 3.5, ship.track_lateral + randf_range(-2.5, 2.5), 0.0)
 			_play_for(ship, "mine_drop")
 		Items.SHIELD:
 			_play_for(ship, "shield_on")
+		Items.TURBO:
+			_play_for(ship, "turbo")
 
 
 func _launch(kind: Projectile.Kind, ship: Ship, s: float, lateral: float, speed: float) -> Projectile:
@@ -250,7 +260,7 @@ func _check_off_track(ship: Ship, delta: float) -> void:
 		ship.respawn(Transform3D(back.basis, back.origin + back.basis.y * 1.5))
 		if ship == player and not Game.attract:
 			hud.flash("Off the track. Rescued", HudCanvas.AMBER)
-			Sfx.play("shield_on", 0.7, 0.0)
+			Sfx.play("rescue")
 
 
 ## Fractional frame index of a ship along the lap.

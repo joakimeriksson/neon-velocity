@@ -2,18 +2,46 @@ extends Node
 
 ## Autoload. One-shot sound effects, in priority order:
 ##   1. a res://audio/sfx/<name>.(wav|ogg) file,
-##   2. a designed gamesynth patch (SfxPatches) played live by the synth,
-##   3. a WAV synthesised here at startup (fallback without the extension).
-## Names used by the game: countdown_tick, countdown_go, lap, finish, boost, pad_bell, wall_hit,
-## wall_clang, ship_hit, and combat: rocket_fire, missile_fire, mine_drop, explosion, shield_on,
-## shield_block, pickup, recharge, energy_low.
+##   2. a gamesynth event generator (GENERATORS): layered, a little different on every
+##      trigger, shaped by `power` (how hard) and `distance` (how far from the listener),
+##   3. a hand-made gamesynth patch (SfxPatches), for sounds with no generator (the pad bell),
+##   4. a WAV synthesised here at startup (fallback without the extension).
 
 const SFX_DIR := "res://audio/sfx"
+## Event name -> [generator name or res:// model file, preset ("" = default), level in dB].
+const GENERATORS := {
+	"countdown_tick": ["beep", "", 0.0],
+	"countdown_go": ["beep", "Go", 2.0],
+	"energy_low": ["beep", "Warning", -2.0],
+	"lock_on": ["lock_on", "Incoming!", 2.0],
+	"lap": ["res://audio/models/checkpoint.toml", "", 0.0],
+	"pickup": ["pickup", "", 0.0],
+	"absorb": ["pickup", "Energy cell", 0.0],
+	"boost": ["boost", "", 0.0],
+	"turbo": ["boost", "Turbo", 2.0],
+	"airbrake": ["airbrake", "", -4.0],
+	"wall_hit": ["impact", "", 2.0],
+	"ship_hit": ["impact", "Glancing", 0.0],
+	"landing": ["impact", "Heavy slam", 2.0],
+	"rocket_fire": ["rocket", "", 0.0],
+	"missile_fire": ["rocket", "Heavy missile", 0.0],
+	"mine_drop": ["mine_drop", "Cluster", 0.0],
+	"mine_blast": ["mine_blast", "", 2.0],
+	"explosion": ["explosion", "", 2.0],
+	"explosion_big": ["explosion", "Ship destroyed", 5.0],
+	"shield_on": ["shield_up", "", 0.0],
+	"shield_block": ["shield_hit", "", 0.0],
+	"rescue": ["shield_up", "Autopilot engage", 0.0],
+}
 const RATE := 44100
 
 @export var volume_db := -10.0
+## Most effect players alive at once. Past this, other ships' positional sounds are dropped;
+## the player's own always play.
+@export var max_voices := 36
 
 var _streams := {}
+var _levels := {}   # name -> dB trim for generator streams
 
 
 func _ready() -> void:
@@ -33,6 +61,10 @@ func has(name: String) -> bool:
 func _stream_for(name: String) -> AudioStream:
 	if _streams.has(name):
 		return _streams[name]
+	var generator := _make_generator(name)
+	if generator:
+		_streams[name] = generator
+		return generator
 	var synth := SfxPatches.make_stream(name)
 	if synth:
 		_streams[name] = synth
@@ -43,11 +75,35 @@ func _stream_for(name: String) -> AudioStream:
 	return generated
 
 
-## Non-positional (UI / player-relative).
-func play(name: String, pitch := 1.0, db := 0.0) -> void:
+func _make_generator(name: String) -> AudioStream:
+	if not GENERATORS.has(name) or not ClassDB.class_exists("SoundGenerator"):
+		return null
+	var spec: Array = GENERATORS[name]
+	var source: String = spec[0]
+	var gen = ClassDB.class_call_static("SoundGenerator", "from_file" if source.begins_with("res://") else "create", source)
+	if gen == null or gen.get_error() != "":
+		push_warning("Sfx: generator '%s' unavailable: %s" % [source, gen.get_error() if gen else "null"])
+		return null
+	if spec[1] != "":
+		gen.preset = spec[1]
+	_levels[name] = float(spec[2])
+	return gen
+
+
+## Generators are shared between their players; these apply to the next play().
+func _shape(name: String, stream: AudioStream, power: float, distance: float) -> void:
+	if _levels.has(name):
+		stream.set_start_input("power", clampf(power, 0.0, 1.0))
+		stream.set_start_input("distance", clampf(distance, 0.0, 1.0))
+
+
+## Non-positional (UI / player-relative). `power` 0..1 shapes a generator's sound.
+func play(name: String, pitch := 1.0, db := 0.0, power := 1.0) -> void:
 	var stream := _stream_for(name)
 	if stream == null:
 		return
+	_shape(name, stream, power, 0.0)
+	db += _levels.get(name, 0.0)
 	var p := AudioStreamPlayer.new()
 	p.bus = &"SFX"
 	p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM  # synthesised streams can't be browser samples
@@ -61,10 +117,17 @@ func play(name: String, pitch := 1.0, db := 0.0) -> void:
 
 
 ## Positional, in the 3D world. `unit_size` is the distance at which falloff starts.
-func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size := 12.0) -> void:
+func play_at(name: String, position: Vector3, pitch := 1.0, db := 0.0, unit_size := 12.0, power := 1.0) -> void:
+	if get_child_count() >= max_voices:
+		return
 	var stream := _stream_for(name)
 	if stream == null:
 		return
+	# Godot handles the loudness falloff; the generator handles how distance dulls the sound.
+	var camera := get_viewport().get_camera_3d()
+	var far := camera.global_position.distance_to(position) / 300.0 if camera else 0.0
+	_shape(name, stream, power, far)
+	db += _levels.get(name, 0.0)
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"SFX"
 	p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM  # synthesised streams can't be browser samples

@@ -45,6 +45,24 @@ binary into `addons/gamesynth/bin/`. With it loaded:
 
 The extension also builds to WebAssembly for the web export (single-threaded, `nothreads` feature).
 
+### gamesynth generators (2026-09-20)
+
+gamesynth's `SoundGenerator` now carries nearly every sound in the game:
+
+- **Events** (`Sfx.GENERATORS` in `scripts/sfx.gd` maps each game event to a generator and preset): `beep`
+  (countdown, Go, low-energy warning), `lock_on`, `pickup`, `boost`, `airbrake`, `impact` (wall, ship contact,
+  heavy landing), `rocket`, `mine_drop`, `mine_blast`, `explosion` (and its "Ship destroyed" preset), `shield_up`,
+  `shield_hit`, plus the `checkpoint` model file for laps. Each play passes `power` (how hard) and `distance`
+  (how far from the camera); every trigger varies a little; players free themselves on `finished`.
+- **Continuous** (`scripts/ambience.gd`, player-centric): `rain` with `shelter` in tunnels, `wind` with speed and
+  airtime, and the `recharge` model in the pit lane. Per ship: `scrape` while grinding a wall (`engine_audio.gd`).
+  Per weapon near the player (`projectile.gd`): `rocket_flight` on rockets and missiles, `mine_armed` ticking
+  faster as a ship approaches.
+- Model files live in `audio/models/*.toml` (copied from `../gamesynth/models/`) and are included in the web
+  export by `include_filter="*.toml"`.
+- Still hand-made `SynthPatch`es (`scripts/sfx_patches.gd`): the pad bell and the finish chime. Every such
+  one-shot patch needs a `master/duration`, or it never ends and its player leaks.
+
 Stage 1 files still take priority wherever they exist, so rendered loops or samples can replace any layer.
 
 Original Stage 2 design notes (kept for reference):

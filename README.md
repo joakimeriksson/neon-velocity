@@ -52,9 +52,10 @@ Simulate a full race headless, as fast as possible, printing lap times:
 
     AG_TRACK=0 AG_AUTOPILOT=1 godot --headless --path . --fixed-fps 60 --quit-after 5400 scenes/main.tscn
 
-Check that no circuit folds back on itself:
+Check that no circuit folds back on itself, and that both walls actually stop a ship:
 
     godot --headless --path . -s tools/check_tracks.gd
+    godot --headless --path . -s tools/check_walls.gd
 
 `AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone; `AG_NO_EXHAUST=1` hides the
 afterburners. `tools/flame_test.tscn` is a side-view rig for tuning the exhaust:

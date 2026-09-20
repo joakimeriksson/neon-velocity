@@ -204,10 +204,12 @@ func _build_walls() -> ArrayMesh:
 		var uv1 := Vector2(1, v)
 		var uv2 := Vector2(1, v + step / wall_height)
 		var uv3 := Vector2(0, v + step / wall_height)
-		# Left wall faces +x (inward), right wall faces -x.
+		# Left wall faces +x (inward), right wall faces -x. The left wall is the mirror image,
+		# so its vertices run the other way round: trimesh collision only registers front
+		# faces, and with the right wall's order the left one was pass-through from the track.
 		_quad(st,
-			_edge(i, -1), _edge(i, -1, wall_height), _edge(i + 1, -1, wall_height), _edge(i + 1, -1),
-			f0.basis.x, f0.basis.x, f1.basis.x, f1.basis.x, uv0, uv1, uv2, uv3)
+			_edge(i + 1, -1), _edge(i + 1, -1, wall_height), _edge(i, -1, wall_height), _edge(i, -1),
+			f1.basis.x, f1.basis.x, f0.basis.x, f0.basis.x, uv3, uv2, uv1, uv0)
 		_quad(st,
 			_edge(i, 1), _edge(i, 1, wall_height), _edge(i + 1, 1, wall_height), _edge(i + 1, 1),
 			-f0.basis.x, -f0.basis.x, -f1.basis.x, -f1.basis.x, uv0, uv1, uv2, uv3)

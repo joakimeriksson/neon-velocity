@@ -18,6 +18,8 @@ func _init():
 		var res := {"left": 0, "right": 0}
 		var n := 0
 		for i in range(0, tb.frames.size(), 10):
+			if tb.in_gap(i) or tb.in_gap(i + 1):
+				continue   # no road, no walls: that's the point of a gap
 			var f: Transform3D = tb.frames[i]
 			var from := f.origin + f.basis.y * 1.0
 			n += 1

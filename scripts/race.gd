@@ -38,6 +38,7 @@ var _results: Results
 var _pause: PauseMenu
 var _player_finish_time := 0.0
 var _eliminated_at := {}   # Ship -> race_time
+var _reverb: AudioEffectReverb
 var _log := OS.has_environment("AG_COMBAT_LOG")   ## print pickups, shots, hits and pit stops
 
 
@@ -197,6 +198,36 @@ func _play_for(ship: Ship, sfx: String) -> void:
 		Sfx.play_at(sfx, ship.global_position, 1.0, 0.0, 30.0)
 
 
+## Under a roof: no rain on the camera, and the engines ring off the walls.
+func _update_tunnel(delta: float) -> void:
+	var inside := track.in_tunnel(player.frame_hint)
+	var rain := camera.get_node_or_null("Rain")
+	if rain:
+		rain.visible = not inside
+	if _reverb == null:
+		var bus := AudioServer.get_bus_index("SFX")
+		if bus < 0:
+			return
+		_reverb = AudioEffectReverb.new()
+		_reverb.room_size = 0.75
+		_reverb.damping = 0.35
+		_reverb.spread = 0.9
+		_reverb.dry = 1.0
+		_reverb.wet = 0.0
+		AudioServer.add_bus_effect(bus, _reverb)
+	_reverb.wet = lerpf(_reverb.wet, 0.4 if inside else 0.0, minf(4.0 * delta, 1.0))
+
+
+func _exit_tree() -> void:
+	# The bus outlives the scene; take the reverb off so restarts don't stack them.
+	if _reverb:
+		var bus := AudioServer.get_bus_index("SFX")
+		for i in AudioServer.get_bus_effect_count(bus):
+			if AudioServer.get_bus_effect(bus, i) == _reverb:
+				AudioServer.remove_bus_effect(bus, i)
+				break
+
+
 ## Over the wall or under the road: after a moment a rescue drops the ship back on the track
 ## at a standstill. The lost time is the penalty.
 func _check_off_track(ship: Ship, delta: float) -> void:
@@ -210,8 +241,8 @@ func _check_off_track(ship: Ship, delta: float) -> void:
 		ship.off_track_time = 0.0
 	if ship.off_track_time > rescue_after:
 		if _log:
-			print("%6.1f  %-8s rescued (off the track)" % [race_time, ship.ship_name])
-		var back := track.frames[posmod(ship.frame_hint + 2, track.frames.size())]
+			print("%6.1f  %-8s rescued: %s, lateral %.1f m, %.1f m below the road line, at %.0f%% of lap, speed %.0f" % [race_time, ship.ship_name, "over the wall" if beyond_wall else "under the road", rel.dot(f.basis.x), -rel.dot(f.basis.y), ship.progress * 100.0, ship.speed])
+		var back := track.frames[track.safe_frame(ship.frame_hint + 2)]
 		ship.respawn(Transform3D(back.basis, back.origin + back.basis.y * 1.5))
 		if ship == player and not Game.attract:
 			hud.flash("Off the track. Rescued", HudCanvas.AMBER)
@@ -333,6 +364,7 @@ func _process(delta: float) -> void:
 		player.respawn(track.get_respawn_transform(player.global_position))
 	hud.position = _position_of(player)
 	hud.field = ships.size()
+	_update_tunnel(delta)
 	# Warn from about 300 m before the pit lane until its end.
 	var lead := 300.0 / (track.frames.size() * track.step)
 	var pit_start: float = track.pit_lane[0]

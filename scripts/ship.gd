@@ -56,7 +56,7 @@ signal landed(impact: float)   ## came down from a jump; impact is the touchdown
 @export var air_align_speed := 2.0
 @export var gravity := 30.0
 @export var air_thrust := 0.35       ## fraction of thrust available while flying
-@export var air_grip := 0.35         ## lateral grip while flying
+@export var air_grip := 1.1          ## lateral grip while flying: enough to bend a flight, not to save a bad one
 @export var hard_landing := 27.0     ## touchdown speed (m/s) above which a landing hurts; a clean crest lands at ~20
 
 @export_group("Visual")

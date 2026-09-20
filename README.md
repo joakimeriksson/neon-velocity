@@ -24,6 +24,11 @@ throw a fast ship 4-6 m into the air, over the 2.5 m walls if you steer wrong. T
 the nose follows the flight path, hard landings cost energy, and a ship over the wall or under the road is rescued
 back onto the track at a standstill after 0.8 s.
 
+**Gaps and tunnels**: a `gap` in `relief` is a kicker ramp that ends in open air, with the road resuming further on:
+clear it or fall and be rescued on the far side. The builder places each feature where a straight flight strays least
+from the road and refuses a gap that doesn't fit (Undertow is too twisty for one). `tunnels` roofs a stretch with a
+faceted shell, neon ribs and shoulder light lines; inside, the rain stops and the SFX bus gets reverb.
+
 **Scoring**: position points (1000 / 700 / 500 / 350 / 200) + 25 per second under the circuit's par time
 (`par_lap` × 3 in `track_defs.gd`) + 250 for a lap under 97% of par + 75 per weapon hit landed and 250 per rival eliminated. Being eliminated scores 0.
 

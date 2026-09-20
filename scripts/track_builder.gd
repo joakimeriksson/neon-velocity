@@ -30,7 +30,12 @@ var lit_sections: Array = []   # [[start_fraction, end_fraction], ...]
 ## Vertical features: ["crest" | "drop", lap fraction, height (m), length (m)]. Each snaps to
 ## the straightest stretch near its fraction. See _apply_relief().
 var relief: Array = []
-var relief_placed: Array = []   # [[kind, frame index], ...] where they ended up, for tools
+var relief_placed: Array = []   # [[kind, first frame, last frame], ...] where they ended up
+## Frame ranges [first, last) with no road at all: fly it or fall.
+var gaps: Array = []
+## Roofed stretches as lap fractions [[start, end], ...]; trimmed clear of crests and gaps.
+var tunnels: Array = []
+var tunnel_ranges: Array = []   # [[first frame, last frame], ...] as built
 
 var frames: Array[Transform3D] = []
 
@@ -40,6 +45,7 @@ var _strip_mat: StandardMaterial3D
 var _start_mat: StandardMaterial3D
 var _boost_mat: StandardMaterial3D
 var _pit_mat: StandardMaterial3D
+var _tunnel_mat: StandardMaterial3D
 var _pad_ready_at := {}   # Area3D -> time (s) the item pad comes back
 
 
@@ -58,6 +64,7 @@ func load_def(def: Dictionary) -> void:
 	light_color = def.get("light_color", light_color)
 	lit_sections = def.get("lit_sections", [])
 	relief = def.get("relief", [])
+	tunnels = def.get("tunnels", [])
 	boost_pad_positions.assign(def.get("boost_pads", [0.12, 0.38, 0.6, 0.83]))
 	item_pad_positions.assign(def.get("item_pads", _default_item_pads()))
 	pit_lane = def.get("pit", [0.9, 0.985, 1.0])
@@ -91,6 +98,8 @@ func build() -> void:
 	_add_mesh(_build_walls(), _wall_mat, true)
 	_add_mesh(_build_strips(), _strip_mat, false)
 	_add_mesh(_build_start_line(), _start_mat, false)
+	_add_gap_edges()
+	_add_tunnels()
 	_add_boost_pads()
 	_add_item_pads()
 	_add_pit_lane()
@@ -137,8 +146,34 @@ func get_grid_transforms(count: int) -> Array[Transform3D]:
 
 
 func get_respawn_transform(pos: Vector3) -> Transform3D:
-	var f := frames[get_nearest_frame_index(pos)]
+	var f := frames[safe_frame(get_nearest_frame_index(pos))]
 	return Transform3D(f.basis, f.origin + f.basis.y * 1.5)
+
+
+func in_gap(index: int) -> bool:
+	var i := posmod(index, frames.size())
+	for g in gaps:
+		if i >= g[0] and i < g[1]:
+			return true
+	return false
+
+
+## A frame with road under it: anything on a ramp's lip or over a gap moves to the far side,
+## so a rescued ship isn't asked to jump the gap again from a standstill.
+func safe_frame(index: int) -> int:
+	var i := posmod(index, frames.size())
+	for g in gaps:
+		if i >= g[0] - 12 and i < g[1] + 4:
+			return (g[1] + 6) % frames.size()
+	return i
+
+
+func in_tunnel(index: int) -> bool:
+	var i := posmod(index, frames.size())
+	for t in tunnel_ranges:
+		if i >= t[0] and i < t[1]:
+			return true
+	return false
 
 
 ## 0..1 progress around the lap.
@@ -214,7 +249,7 @@ func _sample_frames(curve: Curve3D) -> Array[Transform3D]:
 		positions.append(p)
 		forwards.append((p2 - p).normalized())
 
-	_apply_relief(positions, forwards)
+	_apply_relief(positions)
 	# Headings follow the reshaped road.
 	for i in count:
 		forwards[i] = (positions[(i + 1) % count] - positions[i]).normalized()
@@ -243,40 +278,82 @@ func _sample_frames(curve: Curve3D) -> Array[Transform3D]:
 	return result
 
 
-## Crests and drops, the things that throw a fast ship into the air.
+## How far (m, horizontally) the road strays from a straight line drawn from frame `from`
+## along its heading, over the next `frames_ahead` frames.
+func _flight_deviation(positions: Array[Vector3], from: int, frames_ahead: int) -> float:
+	var count := positions.size()
+	var origin := positions[posmod(from, count)]
+	var heading := positions[posmod(from + 1, count)] - origin
+	heading.y = 0.0
+	heading = heading.normalized()
+	var worst := 0.0
+	for k in range(2, frames_ahead):
+		var r := positions[posmod(from + k, count)] - origin
+		r.y = 0.0
+		worst = maxf(worst, (r - heading * r.dot(heading)).length())
+	return worst
+
+
+## Crests, drops and gaps, the things that throw a fast ship into the air.
 ##  - crest: a raised-cosine hump `height` tall over `length` metres. The ship leaves the road
 ##    on the way up and lands beyond it.
 ##  - drop: the road falls `height` over `length` metres, then climbs back gently over the next
 ##    500 m so the lap still closes.
-## Each is slid along the lap (within 5% of where it was asked for) to the straightest stretch,
-## and kept clear of the start, the grid and the pit lane.
-func _apply_relief(positions: Array[Vector3], forwards: Array[Vector3]) -> void:
+##  - gap: a kicker ramp rising `height` over `length` metres with its steepest point at the
+##    lip, then `gap` metres (5th value) of nothing, then the road again at its original level.
+##    The frames across the gap still exist (for the AI, laps and projectiles); only the road,
+##    walls and neon are missing.
+## Each is slid along the lap (up to an eighth of it) to where a straight flight strays least
+## from the road, kept clear of the other features, the start, the grid and the pit lane.
+func _apply_relief(positions: Array[Vector3]) -> void:
 	relief_placed.clear()
+	gaps.clear()
 	var count := positions.size()
-	var bend: Array[float] = []
-	for i in count:
-		bend.append(absf(forwards[(i - 1 + count) % count].cross(forwards[(i + 1) % count]).y))
 	for feature in relief:
 		var kind: String = feature[0]
 		var height: float = feature[2]
 		var length: float = feature[3]
-		var span := int((length + 170.0) / step)   # the feature plus room to fly and land
-		var lead := int(40.0 / step)               # and a straight run-up
+		var gap_length: float = feature[4] if feature.size() > 4 else 0.0
+		var span := int((length + gap_length + 170.0) / step)   # the feature plus room to fly and land
+		var frames_long_ := int(length / step)
+		# Where the ship leaves the road, and how far it then flies in a straight line.
+		var launch := frames_long_ if kind == "gap" else (frames_long_ / 2 if kind == "crest" else 0)
+		var flight := int((gap_length + 90.0) / step) if kind == "gap" else int((110.0 if kind == "crest" else 60.0) / step)
 		var want := int(float(feature[1]) * count)
-		var lo := maxi(want - count / 20, count / 25)
-		var hi := mini(want + count / 20, int(count * 0.86) - span)
+		var lo := maxi(want - count / 8, count / 25)
+		var hi := mini(want + count / 8, int(count * 0.86) - span)
 		var best := clampi(want, lo, maxi(lo, hi))
-		var best_bend := INF
+		var best_cost := INF
 		for start in range(lo, maxi(lo + 1, hi)):
-			var total := 0.0
-			for k in range(-lead, span):
-				total += bend[posmod(start + k, count)]
-			if total < best_bend:
-				best_bend = total
+			var clash := false
+			for r in relief_placed:
+				if start < r[2] + 20 and start + span > r[1] - 45:
+					clash = true
+			if clash:
+				continue
+			# A flight is a straight line; the cost is how far the road strays from it, plus
+			# a little for a curving run-up and for moving away from where it was asked for.
+			var cost := _flight_deviation(positions, start + launch, flight)
+			cost += _flight_deviation(positions, start - int(40.0 / step), int(40.0 / step) + launch) * 0.5
+			cost += 40.0 * absf(start - want) / float(count)
+			if cost < best_cost:
+				best_cost = cost
 				best = start
-		relief_placed.append([kind, best])
+		# A gap where the road curves away under the flight is a trap, not a jump.
+		if kind == "gap" and _flight_deviation(positions, best + launch, flight) > track_width * 0.3:
+			push_warning("TrackBuilder: no stretch straight enough for the gap asked for at %.0f%%; skipped" % (float(feature[1]) * 100.0))
+			continue
+		relief_placed.append([kind, best, best + span])
 		var frames_long := int(length / step)
-		if kind == "crest":
+		if kind == "gap":
+			var gap_frames := int(gap_length / step)
+			for k in frames_long + gap_frames:
+				var offset := height * pow(float(k) / float(frames_long), 2.0)
+				if k > frames_long:
+					offset = height * (1.0 - float(k - frames_long) / float(gap_frames))
+				positions[(best + k) % count].y += offset
+			gaps.append([best + frames_long, best + frames_long + gap_frames])
+		elif kind == "crest":
 			for k in frames_long + 1:
 				var x := float(k) / float(frames_long)
 				positions[(best + k) % count].y += height * 0.5 * (1.0 - cos(TAU * x))
@@ -297,6 +374,8 @@ func _build_surface() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in frames.size():
+		if in_gap(i):
+			continue
 		var n0 := frames[i].basis.y
 		var n1 := frames[(i + 1) % frames.size()].basis.y
 		var v := float(i) * step / track_width
@@ -311,6 +390,8 @@ func _build_walls() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in frames.size():
+		if in_gap(i):
+			continue
 		var f0 := frames[i]
 		var f1 := frames[(i + 1) % frames.size()]
 		var v := float(i) * step / wall_height
@@ -335,6 +416,8 @@ func _build_strips() -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var inner := 1.0 - 1.2 / track_width
 	for i in frames.size():
+		if in_gap(i):
+			continue
 		var n0 := frames[i].basis.y
 		var n1 := frames[(i + 1) % frames.size()].basis.y
 		for side in [-1.0, 1.0]:
@@ -383,7 +466,7 @@ func _add_boost_pads() -> void:
 	var n := frames.size()
 	var pad_frames := int(boost_pad_length / step)
 	for fraction in boost_pad_positions:
-		var start := int(fraction * n)
+		var start := _clear_of_gaps(int(fraction * n), pad_frames)
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		for k in pad_frames:
@@ -424,13 +507,119 @@ func _on_boost_pad_near(body: Node3D) -> void:
 		body.pad_near()
 
 
+## Slide a pad that would sit on a ramp or hang over a gap to just past the landing.
+func _clear_of_gaps(start: int, length: int) -> int:
+	for g in gaps:
+		if start + length > g[0] - 30 and start < g[1] + 20:
+			return g[1] + 24
+	return start
+
+
+## A bright bar across the lip and across the landing edge, so a gap can be read at speed.
+func _add_gap_edges() -> void:
+	for g in gaps:
+		var lip: int = g[0]
+		var landing: int = g[1]
+		for i: int in [lip, landing]:
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var back: int = i - 1 if i == lip else i
+			var up := frames[back % frames.size()].basis.y
+			_quad(st,
+				_edge(back, -1, 0.06), _edge(back, 1, 0.06), _edge(back + 1, 1, 0.06), _edge(back + 1, -1, 0.06),
+				up, up, up, up, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+			_add_mesh(st.commit(), _start_mat if i == lip else _pit_mat, false)
+
+
+## Tunnels: the walls carried up and over into a faceted roof, a neon rib every 16 m and a
+## light line along each shoulder. Ranges are trimmed so no tunnel covers a crest, ramp or gap.
+func _add_tunnels() -> void:
+	tunnel_ranges.clear()
+	var n := frames.size()
+	for t in tunnels:
+		var first := int(float(t[0]) * n)
+		var last := int(float(t[1]) * n)
+		for r in relief_placed:
+			var r_first: int = r[1] - 25
+			var r_last: int = r[2]
+			if r_first < last and r_last > first:
+				# Keep the longer side of whatever the feature cuts through.
+				if r_first - first >= last - r_last:
+					last = r_first
+				else:
+					first = r_last
+		if last - first > 30:
+			tunnel_ranges.append([first, last])
+
+	var half := track_width * 0.5
+	# Cross-section, left to right, as (fraction of half width, height).
+	var profile := [Vector2(-1.0, wall_height), Vector2(-1.0, 4.2), Vector2(-0.62, 7.0), Vector2(0.62, 7.0), Vector2(1.0, 4.2), Vector2(1.0, wall_height)]
+	for range_ in tunnel_ranges:
+		var first_frame: int = range_[0]
+		var last_frame: int = range_[1]
+		var shell := SurfaceTool.new()
+		shell.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var glow := SurfaceTool.new()
+		glow.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for i in range(first_frame, last_frame):
+			var f0 := frames[i % n]
+			var f1 := frames[(i + 1) % n]
+			var rib: bool = (i - first_frame) % 8 == 0
+			for k in profile.size() - 1:
+				var a0: Vector3 = f0.origin + f0.basis.x * profile[k].x * half + f0.basis.y * profile[k].y
+				var b0: Vector3 = f0.origin + f0.basis.x * profile[k + 1].x * half + f0.basis.y * profile[k + 1].y
+				var a1: Vector3 = f1.origin + f1.basis.x * profile[k].x * half + f1.basis.y * profile[k].y
+				var b1: Vector3 = f1.origin + f1.basis.x * profile[k + 1].x * half + f1.basis.y * profile[k + 1].y
+				var normal: Vector3 = -((b0 - a0).cross(a1 - a0)).normalized()
+				_quad(shell, a0, b0, b1, a1, normal, normal, normal, normal, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+				if rib:
+					# A thin lit band just inside the shell.
+					var inset := -normal * 0.06
+					var a_end: Vector3 = a0.lerp(a1, 0.3)
+					var b_end: Vector3 = b0.lerp(b1, 0.3)
+					_quad(glow, a0 + inset, b0 + inset, b_end + inset, a_end + inset, normal, normal, normal, normal, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+			# Light lines along both shoulders.
+			for side in [-1.0, 1.0]:
+				var p0: Vector3 = f0.origin + f0.basis.x * side * half * 0.98 + f0.basis.y * 4.0
+				var p1: Vector3 = f1.origin + f1.basis.x * side * half * 0.98 + f1.basis.y * 4.0
+				var q0: Vector3 = p0 + f0.basis.y * 0.25
+				var q1: Vector3 = p1 + f1.basis.y * 0.25
+				var inward: Vector3 = -f0.basis.x * side
+				_quad(glow, p0, q0, q1, p1, inward, inward, inward, inward, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+
+		var shell_mi := MeshInstance3D.new()
+		shell_mi.mesh = shell.commit()
+		shell_mi.material_override = _tunnel_mat
+		add_child(shell_mi)
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var trimesh: ConcavePolygonShape3D = shell_mi.mesh.create_trimesh_shape()
+		trimesh.backface_collision = true   # the roof has to stop a ship from inside
+		shape.shape = trimesh
+		body.add_child(shape)
+		shell_mi.add_child(body)
+		_add_mesh(glow.commit(), _strip_mat, false)
+
+		# Enough real light to see the ships by.
+		var at := first_frame + 10
+		while at < last_frame:
+			var f := frames[at % n]
+			var light := OmniLight3D.new()
+			light.light_color = neon_color.lerp(Color.WHITE, 0.4)
+			light.light_energy = 2.2
+			light.omni_range = 26.0
+			light.position = f.origin + f.basis.y * 5.6
+			add_child(light)
+			at += 20
+
+
 ## Item pads: a pair per position, either side of the centre line, so picking one up means
 ## leaving the racing line. A pad goes dark for a few seconds after it's taken.
 func _add_item_pads() -> void:
 	var n := frames.size()
 	var pad_frames := int(boost_pad_length / step)
 	for fraction in item_pad_positions:
-		var start := int(fraction * n)
+		var start := _clear_of_gaps(int(fraction * n), pad_frames)
 		for side in [-1.0, 1.0]:
 			var inner: float = side * 0.2
 			var outer: float = side * 0.62
@@ -540,6 +729,9 @@ func _add_track_lights() -> void:
 		_add_gantry(frames[start % n], gantry_mesh, lamp_mat, pole_mesh, pole_mat)
 		var i := start
 		while i < end:
+			if in_gap(i) or in_tunnel(i):
+				i += pole_spacing
+				continue
 			var f := frames[i % n]
 			var side := -1.0 if k % 2 == 0 else 1.0
 			k += 1
@@ -634,6 +826,12 @@ func _make_materials() -> void:
 	_boost_mat.emission = Color(1.0, 0.55, 0.1)
 	_boost_mat.emission_energy_multiplier = 2.5
 	_boost_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	_tunnel_mat = StandardMaterial3D.new()
+	_tunnel_mat.albedo_color = Color(0.11, 0.12, 0.16)
+	_tunnel_mat.roughness = 0.45
+	_tunnel_mat.metallic = 0.35
+	_tunnel_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	_pit_mat = StandardMaterial3D.new()
 	_pit_mat.albedo_color = Color(0.2, 1.0, 0.65)

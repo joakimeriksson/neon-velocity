@@ -5,6 +5,7 @@ class_name TrackDefs
 ## `tools/check_tracks.gd` verifies that.
 ##
 ## `setting` shapes the city around the circuit, `open_edges` removes walls, `features` is menu text.
+## `music` lists filename prefixes in audio/music/ that make up the circuit's playlist.
 ## `relief` lists crests, drops and gaps, `tunnels` roofed stretches (see TrackBuilder).
 ## `env` sets the time of day (Race applies it to the WorldEnvironment and Sun; CityBuilder
 ## reads `rain` and `window_lit`). `lit_sections` are lap fractions [start, end] that get
@@ -51,6 +52,7 @@ const ALL: Array[Dictionary] = [
 		"light_color": Color(0.8, 0.9, 1.0),
 		"lit_sections": [[0.2, 0.32], [0.55, 0.62], [0.85, 0.95]],
 		"features": "S-bend, gap jump, tunnel, drop",
+		"music": ["04_", "05_"],
 		"points": [
 			Vector3(0, 0, 0), Vector3(260, 0, -30), Vector3(480, 10, -170), Vector3(530, 28, -420),
 			Vector3(380, 42, -570), Vector3(250, 40, -470), Vector3(110, 32, -560), Vector3(-60, 20, -770),
@@ -72,6 +74,7 @@ const ALL: Array[Dictionary] = [
 		"lit_sections": [[0.1, 0.22], [0.45, 0.55], [0.75, 0.9]],
 		"features": "street canyon, hairpins, long tunnel",
 		"setting": {"drop": 9.0, "gap": 12.0, "count": 1500, "height": 1.3},
+		"music": ["fire1_", "fire3_"],
 		"points": [
 			Vector3(0, 0, 0), Vector3(170, 0, 0), Vector3(310, -4, -40), Vector3(350, -10, -170),
 			Vector3(240, -16, -240), Vector3(120, -20, -180), Vector3(30, -24, -260), Vector3(90, -28, -390),
@@ -95,6 +98,7 @@ const ALL: Array[Dictionary] = [
 		"features": "700 m straights, open-edge sweeper, gap, above the skyline",
 		"setting": {"drop": 150.0, "count": 1100, "height": 0.8, "reach": 700.0},
 		"open_edges": [[0.3, 0.37, 1.0]],
+		"music": ["fire2_", "fire4_", "06_"],
 		"points": [
 			Vector3(0, 0, 0), Vector3(350, 0, 0), Vector3(700, 5, 0), Vector3(960, 20, -90),
 			Vector3(1080, 45, -330), Vector3(960, 65, -570), Vector3(700, 70, -650), Vector3(350, 55, -650),
@@ -118,6 +122,7 @@ const ALL: Array[Dictionary] = [
 		"features": "figure-eight, rail-less bridge with a gap, harbour",
 		"setting": {"drop": 16.0, "count": 450, "height": 0.7, "gap": 60.0, "water": true},
 		"open_edges": [[0.44, 0.58, 0.0]],
+		"music": ["afro"],
 		"points": [
 			Vector3(0, 0, 0), Vector3(250, 0, 0), Vector3(450, 2, -60), Vector3(560, 6, -250),
 			Vector3(470, 10, -440), Vector3(260, 14, -500), Vector3(40, 18, -440), Vector3(-90, 21, -280),

@@ -45,6 +45,14 @@ binary into `addons/gamesynth/bin/`. With it loaded:
 
 The extension also builds to WebAssembly for the web export (single-threaded, `nothreads` feature).
 
+### Music per circuit (2026-09-20)
+
+`Music.set_playlist(prefixes)` narrows the shuffle to files in `audio/music/` whose names start with one of the
+prefixes; each circuit lists its own in `track_defs.gd` (`"music"`), and the title keeps `07_starting_grid`.
+Current sets: `04_`-`07_` (ACE-Step v1 drum and bass, picked by ear), `afro1-4` (afro-funk) and `fire1-4`
+(big beat punk), fetched from the Spark with `SPARK_OUT=music-gen/out_afro tools/music/fetch.sh`.
+Not installed: `out_ace15` (ACE-Step 1.5 re-renders of four v1 tracks; previews in `tools/music/previews/ace15-test`).
+
 ### gamesynth generators (2026-09-20)
 
 gamesynth's `SoundGenerator` now carries nearly every sound in the game:

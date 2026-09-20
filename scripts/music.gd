@@ -19,7 +19,10 @@ const SILENT_DB := -60.0
 @export var cutoff_flat_out := 20000.0  ## Hz at top speed
 @export var cutoff_smoothing := 2.5
 
-var _tracks: Array[String] = []
+var _tracks: Array[String] = []   ## the current playlist, in play order
+var _library: Array[String] = []  ## everything in MUSIC_DIR
+var _prefixes: Array = []
+var _current := ""
 var _players: Array[AudioStreamPlayer] = []
 var _active := 0
 var _fade: Tween
@@ -44,7 +47,13 @@ func _ready() -> void:
 	if OS.has_environment("AG_NO_MUSIC"):
 		return  # dev: listen to engine/SFX alone
 	_scan()
-	play_next()
+	# Deferred: the first scene usually sets its playlist in _ready, and that starts the music.
+	_start.call_deferred()
+
+
+func _start() -> void:
+	if _current == "":
+		play_next()
 
 
 func _process(delta: float) -> void:
@@ -71,7 +80,7 @@ func _exit_tree() -> void:
 
 
 func _scan() -> void:
-	_tracks.clear()
+	_library.clear()
 	var dir := DirAccess.open(MUSIC_DIR)
 	if dir == null:
 		return
@@ -80,9 +89,33 @@ func _scan() -> void:
 		var name := file.trim_suffix(".import")
 		if name.get_extension() in ["ogg", "wav", "mp3"]:
 			var path := MUSIC_DIR.path_join(name)
-			if not _tracks.has(path):
-				_tracks.append(path)
+			if not _library.has(path):
+				_library.append(path)
+	_tracks.assign(_library)
 	_tracks.shuffle()
+
+
+## Narrow the shuffle to files whose names start with one of `prefixes` (a circuit's own
+## music, the title's theme). An empty list means everything. If what's playing doesn't
+## belong to the new playlist, crossfade to something that does.
+func set_playlist(prefixes: Array) -> void:
+	if prefixes == _prefixes:
+		return
+	_prefixes = prefixes.duplicate()
+	_tracks.clear()
+	for path in _library:
+		var file := path.get_file()
+		var wanted := prefixes.is_empty()
+		for prefix in prefixes:
+			if file.begins_with(prefix):
+				wanted = true
+		if wanted:
+			_tracks.append(path)
+	if _tracks.is_empty():
+		_tracks.assign(_library)
+	_tracks.shuffle()
+	if not _tracks.has(_current):
+		play_next()
 
 
 func play_next() -> void:
@@ -90,6 +123,7 @@ func play_next() -> void:
 		return
 	var path: String = _tracks.pop_front()
 	_tracks.append(path)
+	_current = path
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return

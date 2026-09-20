@@ -95,6 +95,8 @@ func _ready() -> void:
 	camera.target = player
 	camera._snap()
 	Music.attach_ship(player)
+	if not Game.attract:
+		Music.set_playlist(def.get("music", []))
 	hud.player = player
 	hud.laps = laps
 	_countdown = countdown_seconds

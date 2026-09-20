@@ -18,6 +18,7 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	Music.set_playlist(["07_"])   # the calm one belongs to the title
 	Game.attract = true
 	Game.track_index = randi() % TrackDefs.ALL.size()
 	add_child(load("res://scenes/main.tscn").instantiate())

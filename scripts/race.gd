@@ -39,6 +39,8 @@ var _pause: PauseMenu
 var _player_finish_time := 0.0
 var _eliminated_at := {}   # Ship -> race_time
 var _reverbs := {}   # bus name -> AudioEffectReverb, for the tunnels
+var landscape: Landscape   ## terrain and zones, on circuits that have a "landscape"
+var _base_env := {}
 var _log := OS.has_environment("AG_COMBAT_LOG")   ## print pickups, shots, hits and pit stops
 
 
@@ -46,7 +48,18 @@ func _ready() -> void:
 	var def := TrackDefs.ALL[Game.track_index]
 	_apply_environment(def.get("env", TrackDefs.NIGHT_RAIN))
 	track.load_def(def)
-	city.build(track, camera, def.get("env", TrackDefs.NIGHT_RAIN), def.get("setting", {}))
+	if def.has("landscape"):
+		landscape = Landscape.new()
+		landscape.name = "Landscape"
+		add_child(landscape)
+		landscape.build(track, def)
+		var scenery := Scenery.new()
+		scenery.name = "Scenery"
+		add_child(scenery)
+		scenery.build(track, landscape)
+		camera.far = 3200.0
+		_base_env = def.get("env", TrackDefs.NIGHT_RAIN)
+	city.build(track, camera, def.get("env", TrackDefs.NIGHT_RAIN), def.get("setting", {}), landscape)
 	var grid := track.get_grid_transforms(ai_count + 1)
 	# Pole is the fastest AI; the player starts at the back.
 	for i in ai_count:
@@ -134,7 +147,14 @@ func _apply_environment(env: Dictionary) -> void:
 	e.volumetric_fog_density = env.vol_fog
 	e.volumetric_fog_albedo = env.vol_fog_albedo
 	e.volumetric_fog_emission = env.vol_fog_emission
+	e.volumetric_fog_enabled = env.vol_fog > 0.0
+	e.fog_height = env.get("fog_height", 0.0)
+	e.fog_height_density = env.get("fog_height_density", 0.0)
+	e.fog_aerial_perspective = env.get("aerial", 0.6)
 	e.tonemap_exposure = env.exposure
+	# Bloom suits the night circuits; in daylight it washes the whole frame out.
+	e.glow_bloom = env.get("glow_bloom", 0.12)
+	e.glow_intensity = env.get("glow_intensity", 1.1)
 	var sun: DirectionalLight3D = $Sun
 	sun.light_color = env.sun_color
 	sun.light_energy = env.sun_energy
@@ -212,6 +232,18 @@ func _play_for(ship: Ship, sfx: String) -> void:
 		Sfx.play(sfx, 1.0, 2.0)
 	else:
 		Sfx.play_at(sfx, ship.global_position, 1.0, 0.0, 30.0)
+
+
+## Each zone of a landscape circuit tints and thickens the air its own way; the values are
+## already blended along the lap, so following the player's frame is smooth.
+func _update_atmosphere() -> void:
+	if landscape == null:
+		return
+	var a := landscape.atmosphere(camera.target.frame_hint if camera.target else 0)
+	var e: Environment = $WorldEnvironment.environment
+	e.fog_light_color = a[0]
+	e.fog_density = float(_base_env.get("fog_density", 0.001)) * float(a[1])
+	e.fog_height_density = float(_base_env.get("fog_height_density", 0.0)) * float(a[2])
 
 
 ## Under a roof: no rain on the camera, and the engines ring off the walls.
@@ -384,6 +416,7 @@ func _process(delta: float) -> void:
 	hud.position = _position_of(player)
 	hud.field = ships.size()
 	_update_tunnel(delta)
+	_update_atmosphere()
 	# Warn from about 300 m before the pit lane until its end.
 	var lead := 300.0 / (track.frames.size() * track.step)
 	var pit_start: float = track.pit_lane[0]

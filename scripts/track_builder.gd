@@ -26,6 +26,10 @@ extends Node3D
 var control_points: Array[Vector3] = []
 var neon_color := Color(0.1, 0.9, 1.0)
 var light_color := Color(0.8, 0.9, 1.0)
+## The road reflects the sun and sky; daylight circuits make it rougher and less metallic so it
+## does not glare (the web renderer has no screen-space reflections and mirrors the bright sky).
+var road_roughness := 0.35
+var road_metallic := 0.4
 var lit_sections: Array = []   # [[start_fraction, end_fraction], ...]
 ## Vertical features: ["crest" | "drop", lap fraction, height (m), length (m)]. Each snaps to
 ## the straightest stretch near its fraction. See _apply_relief().
@@ -65,6 +69,8 @@ func load_def(def: Dictionary) -> void:
 	track_width = def.get("width", 18.0)
 	bank_strength = def.get("bank_strength", 22.0)
 	neon_color = def.get("neon", neon_color)
+	road_roughness = def.get("env", {}).get("road_roughness", 0.35)
+	road_metallic = def.get("env", {}).get("road_metallic", 0.4)
 	light_color = def.get("light_color", light_color)
 	lit_sections = def.get("lit_sections", [])
 	relief = def.get("relief", [])
@@ -827,8 +833,8 @@ func _add_void_floor() -> void:
 func _make_materials() -> void:
 	_floor_mat = StandardMaterial3D.new()
 	_floor_mat.albedo_color = Color(0.13, 0.13, 0.16)
-	_floor_mat.roughness = 0.35
-	_floor_mat.metallic = 0.4
+	_floor_mat.roughness = road_roughness
+	_floor_mat.metallic = road_metallic
 	_floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	_wall_mat = StandardMaterial3D.new()

@@ -10,6 +10,9 @@ var _heights := PackedFloat32Array()
 var _gaps: Array = []
 var _tunnels: Array = []
 var _color := Color.WHITE
+var _zone_colors := PackedColorArray()   ## per outline point, on landscape circuits
+const ZONE_COLORS := {"city": Color(0.3, 0.95, 1.0), "mountain": Color(0.75, 0.7, 0.65), "cliff": Color(1.0, 0.6, 0.2),
+	"forest": Color(0.35, 0.9, 0.35), "docks": Color(1.0, 0.8, 0.15), "causeway": Color(0.4, 0.6, 1.0)}
 var _caption := ""
 var _font: Font = preload("res://assets/fonts/SairaCondensed-Medium.ttf")
 
@@ -29,6 +32,16 @@ func show_circuit(def: Dictionary) -> void:
 		_outline.append(Vector2(f.origin.x, f.origin.z))
 		_heights.append(f.origin.y)
 	_gaps = tb.gaps.duplicate()
+	_zone_colors.clear()
+	var zones: Array = def.get("landscape", {}).get("zones", [])
+	if not zones.is_empty():
+		var n := tb.frames.size()
+		for i in n:
+			var kind := ""
+			for z in zones:
+				if float(i) / n >= float(z[0]):
+					kind = z[1]
+			_zone_colors.append(ZONE_COLORS.get(kind, def.get("neon", Color.WHITE)))
 	_tunnels = tb.tunnel_ranges.duplicate()
 	_color = def.get("neon", Color.WHITE)
 	_caption = "%.1f km    %s" % [tb.frames.size() * tb.step / 1000.0, def.get("features", "")]
@@ -47,20 +60,25 @@ func _draw() -> void:
 	var offset := Vector2(20, 20) + (room - bounds.size * k) * 0.5 - bounds.position * k
 	var n := _outline.size()
 
-	# Runs of road between gaps, each as one tube.
+	# Runs of road between gaps (and, on landscape circuits, between zones), each as one tube.
 	var run := PackedVector2Array()
+	var run_color := _color if _zone_colors.is_empty() else _zone_colors[0]
 	for i in n + 1:
 		var idx := i % n
 		var in_gap := false
 		for g in _gaps:
 			if idx >= g[0] and idx < g[1]:
 				in_gap = true
-		if in_gap:
-			_tube(run, _color, 5.0)
+		var c := _color if _zone_colors.is_empty() else _zone_colors[idx]
+		if in_gap or c != run_color:
+			if not in_gap:
+				run.append(_outline[idx] * k + offset)
+			_tube(run, run_color, 5.0)
 			run = PackedVector2Array()
-		else:
+			run_color = c
+		if not in_gap:
 			run.append(_outline[idx] * k + offset)
-	_tube(run, _color, 5.0)
+	_tube(run, run_color, 5.0)
 
 	for t in _tunnels:
 		var roof := PackedVector2Array()

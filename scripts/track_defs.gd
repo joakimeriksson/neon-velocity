@@ -32,6 +32,17 @@ const DAY := {
 	"vol_fog": 0.004, "vol_fog_albedo": Color(0.9, 0.92, 0.95), "vol_fog_emission": Color(0.06, 0.07, 0.08),
 	"rain": false, "window_lit": 0.05, "exposure": 0.85,
 }
+const SUNRISE := {
+	"sky_top": Color(0.2, 0.36, 0.64), "sky_horizon": Color(0.95, 0.78, 0.64),
+	"sun_color": Color(1.0, 0.87, 0.7), "sun_energy": 2.0, "sun_rotation": Vector3(-24, 35, 0),
+	"ambient": 1.0, "fog_color": Color(0.8, 0.8, 0.84), "fog_density": 0.00045,
+	"vol_fog": 0.0, "vol_fog_albedo": Color(0.95, 0.86, 0.8), "vol_fog_emission": Color(0, 0, 0),
+	"rain": false, "window_lit": 0.25, "exposure": 1.0,
+	"facade": 2.6, "glass": Color(0.13, 0.17, 0.23), "glass_roughness": 0.15,
+	# Morning mist lying in the valleys: thick below fog_height, clear above it.
+	"fog_height": -12.0, "fog_height_density": 0.035, "aerial": 0.3,
+	"glow_bloom": 0.0, "glow_intensity": 0.8, "road_roughness": 0.8, "road_metallic": 0.0,
+}
 const DAWN := {
 	"sky_top": Color(0.3, 0.36, 0.45), "sky_horizon": Color(0.65, 0.62, 0.6),
 	"sun_color": Color(0.85, 0.9, 1.0), "sun_energy": 1.3, "sun_rotation": Vector3(-25, -60, 0),
@@ -85,17 +96,39 @@ const ALL: Array[Dictionary] = [
 	},
 	{
 		"name": "Chrome Riot",
-		"blurb": "Above the skyline: long straights, a wall-less sweeper, one hard stop.",
+		"blurb": "A sunrise run: city, mountain tunnel, cliff road, forest, docks, lake.",
 		"width": 22.0,
 		"bank_strength": 30.0,
 		"neon": Color(1.0, 0.6, 0.15),
 		"par_lap": 44.0,
-		"env": DAWN,
-		"light_color": Color(0.6, 0.8, 1.0),
-		"lit_sections": [[0.02, 0.1], [0.38, 0.48], [0.68, 0.76]],
-		"features": "700 m straights, open-edge sweeper, gap, above the skyline",
-		"setting": {"drop": 150.0, "count": 1100, "height": 0.8, "reach": 700.0},
+		"env": SUNRISE,
+		"light_color": Color(1.0, 0.85, 0.6),
+		"lit_sections": [[0.02, 0.1], [0.69, 0.79], [0.86, 0.93]],
+		"features": "tunnel, rail-less cliff road, ravine jump",
+		"setting": {"count": 380, "reach": 360.0, "gap": 34.0, "height": 0.75},
 		"open_edges": [[0.3, 0.37, 1.0]],
+		# The lap as a journey through changing country. Zones by lap fraction; sides are left and
+		# right of the direction of travel (the lake is inside the lap, on the left).
+		"landscape": {
+			"water_level": -26.0,
+			"lake_bottom": -46.0,
+			"outside_level": 6.0,
+			"hills": 22.0,
+			"mountains_from": 430.0,
+			"mountain_height": 330.0,
+			"snow_line": 190.0,
+			"peaks": [[800.0, -60.0, 300.0, 170.0], [930.0, 200.0, 260.0, 210.0], [1260.0, -780.0, 320.0, 270.0], [-720.0, -840.0, 300.0, 220.0]],
+			"basins": [[1290.0, -320.0, 320.0, -90.0], [-640.0, -210.0, 330.0, -60.0]],
+			"zones": [
+				[0.0, "city", {"left": {"ledge": 22.0, "reach": 16.0}, "right": {"ledge": 240.0, "reach": 150.0}}],
+				[0.115, "mountain"],
+				[0.27, "cliff"],
+				[0.405, "forest"],
+				[0.685, "docks"],
+				[0.8, "causeway", {"right": {"reach": 300.0}}],
+				[0.925, "city", {"left": {"ledge": 22.0, "reach": 16.0}, "right": {"ledge": 240.0, "reach": 150.0}}],
+			],
+		},
 		"points": [
 			Vector3(0, 0, 0), Vector3(350, 0, 0), Vector3(700, 5, 0), Vector3(960, 20, -90),
 			Vector3(1080, 45, -330), Vector3(960, 65, -570), Vector3(700, 70, -650), Vector3(350, 55, -650),

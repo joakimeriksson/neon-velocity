@@ -1,8 +1,8 @@
 // Boot the web build in a headless Chrome (started with --remote-debugging-port=9222), go
-// title -> circuit 1 -> race, and write the browser console and two screenshots.
-//   node tools/web_smoke.mjs http://127.0.0.1:8060/index.html <out dir>
+// title -> a circuit (default 1) -> race, and write the browser console and two screenshots.
+//   node tools/web_smoke.mjs http://127.0.0.1:8060/index.html <out dir> [circuit 1-4]
 import { writeFileSync } from "node:fs";
-const [, , url, outDir] = process.argv;
+const [, , url, outDir, circuit = "1"] = process.argv;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let targets = [];
 for (let i = 0; i < 40 && !targets.length; i++) {
@@ -32,6 +32,6 @@ await sleep(45000); await shot("1_title");
 await send("Input.dispatchMouseEvent", { type: "mousePressed", x: 640, y: 360, button: "left", clickCount: 1 });
 await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: 640, y: 360, button: "left", clickCount: 1 });
 await sleep(500); await key("Enter", "Enter", 13); await sleep(3000);
-await key("1", "Digit1", 49); await sleep(40000); await shot("2_race");
+await key(circuit, `Digit${circuit}`, 48 + Number(circuit)); await sleep(40000); await shot("2_race");
 writeFileSync(`${outDir}/console.txt`, log.join("\n") + "\n");
 ws.close(); process.exit(0);

@@ -1,6 +1,6 @@
 // Tower facade: procedural window grid with randomly lit, warm/cool, occasionally
 // flickering windows, plus grime streaks. Per instance: COLOR = tint,
-// INSTANCE_CUSTOM.x = seed, .y = fraction of windows lit.
+// INSTANCE_CUSTOM.x = seed, .y = fraction of windows lit, .z = base height.
 shader_type spatial;
 render_mode cull_back;
 
@@ -9,6 +9,10 @@ uniform float window_h = 3.4;
 uniform float emission_strength = 1.6;
 uniform sampler2D grime : filter_linear, repeat_enable;
 uniform float ground_y = 0.0;
+// Daylight circuits: a lighter concrete body and dark blue glass in the unlit windows.
+uniform float body_brightness = 1.0;
+uniform vec3 glass : source_color = vec3(0.015, 0.015, 0.02);
+uniform float glass_roughness = 0.8;
 
 varying vec3 wpos;
 varying vec3 wnormal;
@@ -28,7 +32,8 @@ void vertex() {
 
 void fragment() {
 	vec3 n = abs(wnormal);
-	vec3 albedo = tint * 0.3;
+	vec3 albedo = tint * 0.3 * body_brightness;
+	float window_glass = 0.0;
 	vec3 emission = vec3(0.0);
 	vec2 pc;
 	if (n.y > 0.5) {
@@ -55,17 +60,19 @@ void fragment() {
 		}
 		float glow = inside * lit * flick * (0.5 + 0.5 * hash(cell + seed + 3.0));
 		emission = wc * glow;
-		albedo = mix(albedo, vec3(0.015, 0.015, 0.02), inside * (1.0 - lit));
+		albedo = mix(albedo, glass, inside * (1.0 - lit));
+		window_glass = inside * (1.0 - lit);
 	}
 	// Grime: streaky dirt running down the facade, heavier near the ground.
 	float g = texture(grime, pc * vec2(0.03, 0.006) + cdata.x).r;
-	float low = clamp(1.0 - (wpos.y - ground_y) / 40.0, 0.0, 1.0);
+	// INSTANCE_CUSTOM.z is the tower's base height (its own ground on landscape circuits).
+	float low = clamp(1.0 - (wpos.y - cdata.z) / 40.0, 0.0, 1.0);
 	albedo *= mix(0.45, 1.1, g) * (1.0 - 0.4 * low);
 	// Sodium haze creeping up from street level.
 	emission += vec3(0.5, 0.22, 0.06) * low * low * 0.25 * mix(0.6, 1.0, g);
 	emission *= mix(0.7, 1.0, g);
 	ALBEDO = albedo;
 	EMISSION = emission * emission_strength;
-	ROUGHNESS = 0.8;
+	ROUGHNESS = mix(0.8, glass_roughness, window_glass);
 	METALLIC = 0.05;
 }

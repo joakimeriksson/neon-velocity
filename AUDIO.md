@@ -92,7 +92,9 @@ gamesynth's `SoundGenerator` now carries nearly every sound in the game:
   `shield_hit`, plus the `checkpoint` model file for laps. Each play passes `power` (how hard) and `distance`
   (how far from the camera); every trigger varies a little; players free themselves on `finished`.
 - **Continuous** (`scripts/ambience.gd`, player-centric): `rain` with `shelter` in tunnels, `wind` with speed and
-  airtime, and the `recharge` model in the pit lane. Per ship: `scrape` while grinding a wall (`engine_audio.gd`).
+  airtime, and the `recharge` model in the pit lane. On landscape circuits the beds follow the zone instead: a
+  `Stadium` crowd near the start line, the `Lake shore` bed along water (causeway, docks, waterfront), and wind
+  exposure on the cliff road and mountain. Per ship: `scrape` while grinding a wall (`engine_audio.gd`).
   Per weapon near the player (`projectile.gd`): `rocket_flight` on rockets and missiles, `mine_armed` ticking
   faster as a ship approaches.
 - Model files live in `audio/models/*.toml` (copied from `../gamesynth/models/`) and are included in the web

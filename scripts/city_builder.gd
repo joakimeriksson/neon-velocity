@@ -35,11 +35,15 @@ var _beam_angles: Array[float] = []
 var _env := {}
 var _height_scale := 1.0
 var _water := false
+var _landscape: Landscape      ## set on landscape circuits: towers stand on the terrain, city zones only
+var _city_frames := PackedInt32Array()
 
 
 ## `setting` comes from the circuit: {"drop", "count", "gap", "reach", "height", "water"}.
-func build(track: TrackBuilder, camera: Node3D, env := {}, setting := {}) -> void:
+## With a `landscape`, the city is only built in its city zones, on the terrain.
+func build(track: TrackBuilder, camera: Node3D, env := {}, setting := {}, landscape: Landscape = null) -> void:
 	_env = env
+	_landscape = landscape
 	ground_drop = setting.get("drop", 35.0)
 	building_count = setting.get("count", 1300)
 	min_gap = setting.get("gap", 24.0)
@@ -56,13 +60,18 @@ func build(track: TrackBuilder, camera: Node3D, env := {}, setting := {}) -> voi
 	_searchlights.clear()
 	_beam_angles.clear()
 	ground_y = track.lowest_y() - ground_drop
+	_city_frames.clear()
+	for i in track.frames.size():
+		if _landscape == null or _landscape.zone_kind(i) == "city":
+			_city_frames.append(i)
 	_index_track()
 	_place_buildings()
 	_add_building_mesh()
 	_add_signs()
-	_add_ground()
-	_add_street_lights()
-	_add_searchlights()
+	if _landscape == null:
+		_add_ground()
+		_add_street_lights()
+		_add_searchlights()
 	_add_rain(camera)
 
 
@@ -124,13 +133,28 @@ func _clear_of_buildings(pos: Vector3, radius: float) -> bool:
 	return true
 
 
+## Where a tower's base goes: the flat city floor, or the terrain (sunk a little so slopes
+## don't show daylight under it). NAN means nowhere: water, a steep slope, another zone.
+func _ground_at(pos: Vector3) -> float:
+	if _landscape == null:
+		return ground_y
+	var h := _landscape.height_at(pos.x, pos.z)
+	if h < _landscape.water_level + 1.5 or _landscape.normal_at(pos.x, pos.z).y < 0.9:
+		return NAN
+	if _landscape.zone_kind(_landscape.frame_at(pos.x, pos.z)) != "city":
+		return NAN
+	return h - 4.0
+
+
 func _place_buildings() -> void:
 	var frames := _track.frames
 	var half_w := _track.track_width * 0.5
 	var attempts := 0
+	if _city_frames.is_empty():
+		return
 	while _buildings.size() < building_count and attempts < building_count * 6:
 		attempts += 1
-		var f: Transform3D = frames[_rng.randi_range(0, frames.size() - 1)]
+		var f: Transform3D = frames[_city_frames[_rng.randi_range(0, _city_frames.size() - 1)]]
 		var fwd := Vector3(-f.basis.z.x, 0.0, -f.basis.z.z).normalized()
 		var right := Vector3(fwd.z, 0.0, -fwd.x)
 		var side := -1.0 if _rng.randf() < 0.5 else 1.0
@@ -139,7 +163,10 @@ func _place_buildings() -> void:
 		var w := _rng.randf_range(10.0, 34.0)
 		var d := _rng.randf_range(10.0, 34.0)
 		var pos := f.origin + right * side * (half_w + dist + maxf(w, d) * 0.5) + fwd * _rng.randf_range(-30.0, 30.0)
-		pos.y = ground_y
+		var base := _ground_at(pos)
+		if is_nan(base):
+			continue
+		pos.y = base
 		var footprint := maxf(w, d) * 0.72
 		if not _clear_of_track(pos, half_w + min_gap + footprint):
 			continue
@@ -152,7 +179,8 @@ func _place_buildings() -> void:
 		var grey := _rng.randf_range(0.35, 0.7)
 		var tint := Color(grey * _rng.randf_range(0.85, 1.0), grey * _rng.randf_range(0.85, 1.0), grey * _rng.randf_range(0.95, 1.15))
 		var b := {
-			"pos": Vector3(pos.x, ground_y + h * 0.5, pos.z),
+			"pos": Vector3(pos.x, base + h * 0.5, pos.z),
+			"base": base,
 			"size": Vector3(w, h, d),
 			"yaw": yaw,
 			"tint": tint,
@@ -169,7 +197,7 @@ func _place_buildings() -> void:
 		if _rng.randf() < 0.35 and h > 60.0:
 			var ph := _rng.randf_range(12.0, 30.0)
 			var podium := b.duplicate()
-			podium.pos = Vector3(pos.x, ground_y + ph * 0.5, pos.z)
+			podium.pos = Vector3(pos.x, base + ph * 0.5, pos.z)
 			podium.size = Vector3(w * 1.5, ph, d * 1.5)
 			podium.lit = b.lit * 0.6
 			podium.seed = _rng.randf()
@@ -195,7 +223,7 @@ func _add_building_mesh() -> void:
 		var b := _buildings[i]
 		mm.set_instance_transform(i, Transform3D(_building_basis(b), b.pos))
 		mm.set_instance_color(i, b.tint)
-		mm.set_instance_custom_data(i, Color(b.seed, b.lit * _env.get("window_lit", 1.0), 0.0, 0.0))
+		mm.set_instance_custom_data(i, Color(b.seed, b.lit * _env.get("window_lit", 1.0), b.base, 0.0))
 
 	var noise := FastNoiseLite.new()
 	noise.seed = rng_seed
@@ -211,6 +239,9 @@ func _add_building_mesh() -> void:
 	mat.shader = load("res://shaders/building.gdshader")
 	mat.set_shader_parameter("grime", grime)
 	mat.set_shader_parameter("ground_y", ground_y)
+	mat.set_shader_parameter("body_brightness", _env.get("facade", 1.0))
+	mat.set_shader_parameter("glass", _env.get("glass", Color(0.015, 0.015, 0.02)))
+	mat.set_shader_parameter("glass_roughness", _env.get("glass_roughness", 0.8))
 
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
@@ -260,7 +291,7 @@ func _add_signs() -> void:
 		var y: float = _rng.randf_range(6.0, maxf(8.0, b.size.y - height - 4.0))
 		var lateral: float = _rng.randf_range(-1.0, 1.0) * (face_w[best] * 0.5 - width * 0.5 - 1.0)
 		var pos: Vector3 = b.pos + normal * (half[best] + 0.35) + tangent * lateral
-		pos.y = ground_y + y + height * 0.5
+		pos.y = b.base + y + height * 0.5
 		var sign_basis := Basis(tangent * width, Vector3.UP * height, normal)
 		mm.set_instance_transform(i, Transform3D(sign_basis, pos))
 		var color: Color = SIGN_PALETTE[_rng.randi_range(0, SIGN_PALETTE.size() - 1)]

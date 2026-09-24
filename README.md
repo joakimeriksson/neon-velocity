@@ -38,17 +38,30 @@ Circuits (`scripts/track_defs.gd`), each a different kind of drive in a differen
 |---|---|---|
 | **Neon Descent** 3.0 km | flowing loop with one S-bend, gap jump right after the start, tunnel, drop | night, rain, the city at mid height |
 | **Undertow** 2.2 km, 14 m wide | hairpins and chicanes, long tunnel; too twisty for a gap | dusk, down in a street canyon between close towers |
-| **Chrome Riot** 4.0 km, 22 m wide | two 700 m straights, a sweeper with no outer wall, a wiggle into one hard stop | grey dawn, 150 m above the skyline |
+| **Chrome Riot** 4.0 km, 22 m wide | two 700 m straights, a sweeper with no outer wall, a wiggle into one hard stop | sunrise, a journey: waterfront city and grandstands, mountain tunnel, rail-less cliff road over a fjord, pine forest with a ravine jump, docks, lake causeway |
 | **Solar Wake** 3.4 km | figure-eight; the bridge over the start straight has no rails and a gap in it | daylight, a harbour over water |
 
 `setting` in a circuit's definition shapes the city (height above the streets, density, tower height, water);
 `open_edges` removes walls from a stretch; `features` is the select screen's caption. The select screen draws the
-focused circuit's outline (`scripts/track_preview.gd`).
+focused circuit's outline (`scripts/track_preview.gd`), coloured by zone on landscape circuits.
+
+A circuit with a `landscape` entry (Chrome Riot) gets real terrain instead of the endless city. `zones` splits the
+lap into kinds (`city`, `mountain`, `cliff`, `forest`, `docks`, `causeway`, presets in `Landscape.KINDS`), each with
+a profile per side of the road (flat shoulder width, drop or rise, wall, fade into the natural terrain) that blends
+over ~40 frames into the next. Around that: a lake on the inside of the lap, hills and a ring of snow-capped
+mountains outside, authored `peaks` and `basins`, and a ravine carved under every gap. The ground is clamped below
+the banked road surface everywhere, so no terrain can poke through the track. The city only builds towers in city
+zones, on the terrain; `scripts/scenery.gd` adds the forest, rocks and sea stacks, the arch, docks (containers,
+cranes, tanks, smoking chimneys), grandstands with a crowd at the start line, boards, boats and a lighthouse. Fog
+colour, density and valley mist follow the zone the player is in, and so do the crowd, shore and wind beds
+(`ambience.gd`). Environment presets can override glow and the road's roughness and metallic for daylight
+(`SUNRISE`), since the web renderer has no screen-space reflections and a shiny road glares.
 
 ## Layout
 
 - `scripts/track_defs.gd` — the circuits: control points, width, banking, neon colour, boost pad positions.
 - `scripts/track_builder.gd` — builds a closed banked track from a definition: floor, walls, neon edge strips, start line, boost pads, trimesh collider, starting grid.
+- `scripts/landscape.gd` — terrain for landscape circuits: zones, distance field to the track, heights, heightmap collider (layer 2), water, streams, bridge piers, the mountain over the tunnel. `scripts/scenery.gd` — what stands on it. Shaders: `terrain`, `water`, `tree`, `container`, `crowd`.
 - `scripts/city_builder.gd` + `shaders/` — Blade Runner megacity around the track: ~1300 towers in one MultiMesh with a procedural lit-window/grime facade shader, neon billboards, sodium street lights, sweeping searchlights, wet ground, rain following the camera.
 - `models/ships/*.glb` — the ship models (player + four AI), designed externally; see `models/ships/README.md` for the drop-in spec. `scripts/ship.gd` swaps them in for the placeholder hull and attaches exhausts to their `EngineL`/`EngineR` empties.
 - `scripts/title.gd` — title + circuit select over an attract-mode race; `scripts/highscore_screen.gd` + `scripts/highscores.gd` — initials entry and persisted tables; `scripts/results.gd`, `scripts/pause_menu.gd` — overlays; `scripts/ui_theme.gd` — shared neon UI helpers.
@@ -99,6 +112,14 @@ Check that no circuit folds back on itself (a bridge is fine), and that both wal
     godot --headless --path . -s tools/check_tracks.gd
     godot --headless --path . -s tools/check_walls.gd
 
+On landscape circuits, check that the terrain stays at least 1 m below the road across its full width and below
+the wall tops, and render a set of viewpoints around the lap (overview plus 12 views, HUD hidden) to look at:
+
+    godot --headless --path . -s tools/check_landscape.gd
+    AG_TRACK=2 godot --path . --write-movie out/views.avi --fixed-fps 10 --quit-after 200 tools/landscape_views.tscn
+
+`AG_LANDSCAPE_LOG=1` prints the terrain grid size, build times and scenery counts.
+
 `AG_ENERGY=40` starts every ship at that energy (pit stops, low-energy warnings).
 `AG_COMBAT_LOG=1` prints every pickup use, hit, pit entry, jump (airtime, height, touchdown speed), rescue and elimination with race time, for balancing in a headless sim.
 `AG_NO_MUSIC=1` silences the soundtrack so engine and SFX can be judged alone; `AG_NO_EXHAUST=1` hides the
@@ -139,6 +160,9 @@ Smoke test without a visible browser (boots it, starts a race, saves the console
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --mute-audio \
         --remote-debugging-port=9222 --use-angle=swiftshader --enable-unsafe-swiftshader about:blank &
     node tools/web_smoke.mjs http://127.0.0.1:8060/index.html out/web_smoke
+
+A third argument picks the circuit (`3` for Chrome Riot). The gamesynth "command queue full" warnings in the
+console come from the headless browser not playing audio, not from the game.
 
 Export templates for 4.7.2 must be installed first (`~/Library/Application Support/Godot/export_templates/4.7.2.stable/`).
 

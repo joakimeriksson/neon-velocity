@@ -139,6 +139,9 @@ func _ready() -> void:
 	for flame in _flames:
 		flame.get_child(0).material_override = _flame_mat
 	energy = max_energy
+	# Terrain lives on layer 2: the hull bumps into it, but the ground ray (layer 1) only ever
+	# hovers on track.
+	collision_mask |= 1 << (Landscape.TERRAIN_LAYER - 1)
 	# Long enough to see the landing coming and line up with it.
 	ground_ray.target_position = Vector3(0, -30, 0)
 	_shield_mesh = _make_shield_mesh()

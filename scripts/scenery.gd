@@ -26,15 +26,13 @@ func build(p_track: TrackBuilder, p_land: Landscape) -> void:
 		child.free()
 	track = p_track
 	land = p_land
-	_rng.seed = 424242
 	_boats.clear()
-	_add_forest()
-	_add_rocks()
-	_add_arch()
-	_add_docks()
-	_add_start()
-	_add_boards()
-	_add_water_life()
+	# Each builder draws from its own seeded stream, so changing how many of one thing fit
+	# doesn't reshuffle everything built after it.
+	var builders := [_add_forest, _add_rocks, _add_arch, _add_docks, _add_start, _add_boards, _add_water_life]
+	for k in builders.size():
+		_rng.seed = 424242 + 7919 * k
+		builders[k].call()
 	if OS.has_environment("AG_LANDSCAPE_LOG"):
 		print("Scenery: ", _counts)
 
@@ -71,9 +69,40 @@ func _ground(p: Vector3) -> float:
 	return land.height_at(p.x, p.z)
 
 
-## Clear of every part of the road by `margin` metres beyond its edge.
+## Clear of every part of the road by `margin` metres beyond its edge. Coarse: the distance
+## field is on an 8 m grid and measures to the centre point only, so use it to reject, and
+## _edge_clearance to fit anything with real width.
 func _clear_of_road(p: Vector3, margin: float) -> bool:
 	return land.distance_at(p.x, p.z) > track.track_width * 0.5 + margin
+
+
+## Metres from `p` out past the road edge, measured across the road at its nearest
+## cross-section (negative: over the road). A prop reaching `r` metres from its centre stays
+## off the road when r < _edge_clearance(p). Nothing here collides, so anything that overhangs
+## the road is a ghost the ships fly through.
+func _edge_clearance(p: Vector3) -> float:
+	return _road_offset(p).x
+
+
+## `p` against the road's nearest cross-section: x = metres out past the edge (negative:
+## over the road), y = height above the road there.
+func _road_offset(p: Vector3) -> Vector2:
+	var n := track.frames.size()
+	var hint := land.frame_at(p.x, p.z)
+	var best_along := INF
+	var result := Vector2(INF, INF)
+	# The grid cell's frame can be ~6 m off; +-8 frames of 2 m covers it.
+	for di in range(-8, 9):
+		var i := posmod(hint + di, n)
+		var ax := _axes(i)
+		var o := track.frames[i].origin
+		var d := p - o
+		d.y = 0.0
+		var along := absf(d.dot(ax[1]))
+		if along < best_along:
+			best_along = along
+			result = Vector2(absf(d.dot(ax[0])) - track.track_width * 0.5, p.y - o.y)
+	return result
 
 
 func _material(color: Color, roughness := 0.8, metallic := 0.0, cull := true) -> StandardMaterial3D:
@@ -155,6 +184,10 @@ func _multimesh(label: String, mesh: Mesh, xforms: Array[Transform3D], material:
 		mmi.visibility_range_end = range_end
 		mmi.visibility_range_end_margin = 150.0
 		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	# Headless runs use a dummy renderer that drops multimesh transforms; keep them for
+	# tools/check_scenery.gd.
+	mmi.set_meta("xforms", xforms)
+	mmi.set_meta("label", label)   # siblings sharing a name get renamed "@MultiMeshInstance3D@N"
 	add_child(mmi)
 	_counts[label] = _counts.get(label, 0) + xforms.size()
 	return mmi
@@ -272,6 +305,12 @@ func _add_forest() -> void:
 	var mask := FastNoiseLite.new()
 	mask.seed = 77
 	mask.frequency = 0.006
+	# Canopy radius (m) of each mesh at scale 1, to keep the whole crown off the road.
+	var crown := func(mesh: Mesh) -> float:
+		var box := mesh.get_aabb()
+		return maxf(maxf(-box.position.x, box.end.x), maxf(-box.position.z, box.end.z))
+	var pine_r: float = crown.call(pine)
+	var broad_r: float = crown.call(broad)
 	var chunks := {}   # chunk index -> [pine xforms, pine colors, broad xforms, broad colors]
 	var attempts := 60000
 	var placed := 0
@@ -295,6 +334,8 @@ func _add_forest() -> void:
 			continue
 		var is_broad := _rng.randf() < (0.35 if h < land.water_level + 25.0 else 0.08)
 		var s := _rng.randf_range(0.75, 1.45)
+		if _edge_clearance(p) < (broad_r if is_broad else pine_r) * s + 2.5:
+			continue
 		var basis := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(s, s * _rng.randf_range(0.9, 1.2), s))
 		var xform := Transform3D(basis, Vector3(p.x, h - 0.3, p.z))
 		var tint := Color(1, 1, 1).lerp(Color(_rng.randf_range(0.8, 1.1), _rng.randf_range(0.85, 1.15), _rng.randf_range(0.8, 1.0)), 0.8)
@@ -347,6 +388,12 @@ func _add_rocks() -> void:
 	var add := func(p: Vector3, size: Vector3, sink: float) -> void:
 		var basis := Basis(Vector3.UP, _rng.randf() * TAU).rotated(Vector3.RIGHT, _rng.randf_range(-0.2, 0.2)).scaled(size)
 		sets[_rng.randi_range(0, 2)].append(Transform3D(basis, p - Vector3.UP * sink))
+	# How far a rock of size s reaches sideways from its centre: the mesh is a unit sphere
+	# stretched up to 1.3x and bumped out up to 1.32x, then tilted up to 0.2 rad (which swings
+	# its height out sideways). Rocks shrink to fit the room they have, and are dropped
+	# when that leaves too little.
+	var reach := func(width: float, height: float) -> float:
+		return 1.3 * 1.32 * (width + height * sin(0.2))
 	var rocky := {"cliff": 1.0, "mountain": 0.6, "forest": 0.25, "causeway": 0.2}
 	var n := track.frames.size()
 	for i in range(0, n, 3):
@@ -360,18 +407,29 @@ func _add_rocks() -> void:
 			var p: Vector3 = track.frames[i].origin + ax[0] * side * dist + ax[1] * _rng.randf_range(-4.0, 4.0)
 			if not _clear_of_road(p, 7.0):
 				continue
+			var room := _edge_clearance(p) - 2.0
 			var h := _ground(p)
 			var slope := 1.0 - land.normal_at(p.x, p.z).y
 			if h < land.water_level - 2.0:
 				# Sea stack: a tall pillar rising out of the water (cliff and causeway only).
 				if kind in ["cliff", "causeway"] and _rng.randf() < 0.5:
 					var w := _rng.randf_range(6.0, 14.0)
+					var depth := _rng.randf_range(0.8, 1.2)
 					var top := land.water_level + _rng.randf_range(12.0, 55.0)
 					var tall := top - h
-					add.call(Vector3(p.x, h + tall * 0.5, p.z), Vector3(w, tall * 0.55, w * _rng.randf_range(0.8, 1.2)), 0.0)
+					# A pillar is upright-ish, so fit its width alone (the tilt is small beside it).
+					w = minf(w, room / (1.3 * 1.32 * maxf(1.0, depth)))
+					if w < 4.0:
+						continue
+					add.call(Vector3(p.x, h + tall * 0.5, p.z), Vector3(w, tall * 0.55, w * depth), 0.0)
 				continue
 			var size := _rng.randf_range(2.0, 6.0) if kind == "forest" else _rng.randf_range(4.0, 16.0) * (1.0 + slope)
-			add.call(Vector3(p.x, h, p.z), Vector3(size, size * _rng.randf_range(0.5, 1.1), size * _rng.randf_range(0.7, 1.3)), size * 0.3)
+			var tall_k := _rng.randf_range(0.5, 1.1)
+			var deep_k := _rng.randf_range(0.7, 1.3)
+			size = minf(size, room / float(reach.call(maxf(1.0, deep_k), tall_k)))
+			if size < 1.5:
+				continue
+			add.call(Vector3(p.x, h, p.z), Vector3(size, size * tall_k, size * deep_k), size * 0.3)
 	for k in 3:
 		if not sets[k].is_empty():
 			var typed: Array[Transform3D] = []
@@ -390,15 +448,54 @@ func _add_arch() -> void:
 	var right: Vector3 = ax[0]
 	var fwd: Vector3 = ax[1]
 	var half := track.track_width * 0.5
-	var foot_l := f.origin - right * (half + 18.0)
-	foot_l.y = _ground(foot_l) - 4.0
-	var foot_r := f.origin + right * (half + 30.0)
-	foot_r.y = _ground(foot_r) - 4.0
-	var apex := f.origin + Vector3.UP * 34.0
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var segs := 28
 	var ring := 9
+	# The legs are thick (11 m radius, bumped out by the noise), and where one climbs out of
+	# the fjord it can swing across the road edge. Nothing here collides, so step the feet
+	# out until no part of the arch is in the space the ships drive through.
+	var rings: Array = []
+	for spread in range(0, 60, 4):
+		rings = _arch_rings(f, right, fwd, half + float(spread), segs, ring)
+		if not _arch_in_road(rings):
+			break
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for s in segs:
+		var a_c: Vector3 = rings[s][0]
+		var b_c: Vector3 = rings[s + 1][0]
+		var a: PackedVector3Array = rings[s][1]
+		var b: PackedVector3Array = rings[s + 1][1]
+		for r in ring:
+			var r1 := (r + 1) % ring
+			_tri(st, a[r], a[r1], b[r1], (a_c + b_c) * 0.5, Color(1, 0, 0, 0))
+			_tri(st, a[r], b[r1], b[r], (a_c + b_c) * 0.5, Color(1, 0, 0, 0))
+	var mi := MeshInstance3D.new()
+	mi.name = "RockArch"
+	mi.mesh = st.commit()
+	mi.material_override = land.terrain_material()
+	add_child(mi)
+	_counts["arch"] = 1
+
+
+## Any arch vertex beside or over the road below ship height (with a metre to spare).
+func _arch_in_road(rings: Array) -> bool:
+	for r: Array in rings:
+		for pt: Vector3 in r[1]:
+			var o := _road_offset(pt)
+			if o.x < 1.0 and o.y > -1.0 and o.y < 14.0:
+				return true
+	return false
+
+
+## The arch as `segs + 1` rings of `ring` points around a Bezier from one foot, through the
+## apex over frame `f`, to the other; `out` is how far past the centre line the left foot
+## stands (the right one 12 m further, down in the fjord).
+func _arch_rings(f: Transform3D, right: Vector3, fwd: Vector3, out: float, segs: int, ring: int) -> Array:
+	var foot_l := f.origin - right * (out + 18.0)
+	foot_l.y = _ground(foot_l) - 4.0
+	var foot_r := f.origin + right * (out + 30.0)
+	foot_r.y = _ground(foot_r) - 4.0
+	var apex := f.origin + Vector3.UP * 34.0
 	var noise := FastNoiseLite.new()
 	noise.seed = 31
 	noise.frequency = 0.15
@@ -419,21 +516,7 @@ func _add_arch() -> void:
 			var k := 1.0 + 0.3 * noise.get_noise_3dv(c + offset)
 			pts.append(c + offset * k)
 		rings.append([c, pts])
-	for s in segs:
-		var a_c: Vector3 = rings[s][0]
-		var b_c: Vector3 = rings[s + 1][0]
-		var a: PackedVector3Array = rings[s][1]
-		var b: PackedVector3Array = rings[s + 1][1]
-		for r in ring:
-			var r1 := (r + 1) % ring
-			_tri(st, a[r], a[r1], b[r1], (a_c + b_c) * 0.5, Color(1, 0, 0, 0))
-			_tri(st, a[r], b[r1], b[r], (a_c + b_c) * 0.5, Color(1, 0, 0, 0))
-	var mi := MeshInstance3D.new()
-	mi.name = "RockArch"
-	mi.mesh = st.commit()
-	mi.material_override = land.terrain_material()
-	add_child(mi)
-	_counts["arch"] = 1
+	return rings
 
 
 # --- Docks ----------------------------------------------------------------------------
@@ -740,17 +823,32 @@ func _add_boards() -> void:
 		var side := 1.0 if k % 2 == 0 else -1.0
 		if track.is_open(i, side):
 			side = -side
-		var d := track.track_width * 0.5 + 6.0
-		var p: Vector3 = f.origin + ax[0] * side * d
-		var g := _ground(p)
-		var bottom := maxf(g, f.origin.y - 1.0) + 2.5
 		var name: String = TEAMS[k % TEAMS.size()]
 		var color: Color = TEAM_COLORS[k % TEAM_COLORS.size()]
 		k += 1
 		# Angled 35 degrees towards the oncoming traffic.
 		var facing: Vector3 = (-ax[1]).rotated(Vector3.UP, -side * 0.6)
 		var basis := Basis.looking_at(-facing, Vector3.UP)
-		var centre := Vector3(p.x, bottom + 3.0, p.z)
+		# Angled like that, a 22 m board swings its inner end ~6 m towards the road (more on a
+		# bend), and nothing here collides: step it out until both ends are clear of the road.
+		var d := track.track_width * 0.5 + 6.0
+		var p: Vector3
+		var g: float
+		var bottom: float
+		var centre: Vector3
+		while true:
+			p = f.origin + ax[0] * side * d
+			g = _ground(p)
+			bottom = maxf(g, f.origin.y - 1.0) + 2.5
+			centre = Vector3(p.x, bottom + 3.0, p.z)
+			var clear := true
+			for end: float in [-11.2, 11.2]:
+				for dy: float in [-3.2, 3.2]:
+					if _edge_clearance(centre + basis.x * end + basis.y * dy) < 3.0:
+						clear = false
+			if clear or d > track.track_width * 0.5 + 30.0:
+				break
+			d += 1.0
 		_box(Vector3(22.0, 6.0, 0.6), Transform3D(basis, centre), panel)
 		var frame_mat := _glow(color, 2.5)
 		for dy in [-3.0, 3.0]:

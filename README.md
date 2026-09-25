@@ -113,9 +113,11 @@ Check that no circuit folds back on itself (a bridge is fine), and that both wal
     godot --headless --path . -s tools/check_walls.gd
 
 On landscape circuits, check that the terrain stays at least 1 m below the road across its full width and below
-the wall tops, and render a set of viewpoints around the lap (overview plus 12 views, HUD hidden) to look at:
+the wall tops, that no scenery (rocks, trees, the arch, boards: none of it collides) reaches into the space the
+ships drive through, and render a set of viewpoints around the lap (overview plus 12 views, HUD hidden) to look at:
 
     godot --headless --path . -s tools/check_landscape.gd
+    godot --headless --path . -s tools/check_scenery.gd
     AG_TRACK=2 godot --path . --write-movie out/views.avi --fixed-fps 10 --quit-after 200 tools/landscape_views.tscn
 
 `AG_LANDSCAPE_LOG=1` prints the terrain grid size, build times and scenery counts.

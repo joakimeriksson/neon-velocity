@@ -17,8 +17,10 @@ func _ready() -> void:
 func top(track: String) -> Array:
 	if not tables.has(track):
 		tables[track] = []
+		# A championship is four races and the title bonus.
+		var scale := 4.5 if track.begins_with("Championship") else 1.0
 		for s in SEED:
-			tables[track].append({"name": s[0], "score": s[1], "time": 0.0, "best_lap": 0.0, "position": 0})
+			tables[track].append({"name": s[0], "score": int(s[1] * scale), "time": 0.0, "best_lap": 0.0, "position": 0})
 	return tables[track]
 
 

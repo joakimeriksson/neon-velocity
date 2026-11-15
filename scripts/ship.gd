@@ -18,6 +18,8 @@ signal item_absorbed
 signal hit_taken(damage: float, by_name: String, weapon: String)   ## weapon hits only
 signal eliminated
 signal landed(impact: float)   ## came down from a jump; impact is the touchdown speed in m/s
+signal respawned               ## teleported: anything tracking this ship's velocity should restart
+signal side_shifted(direction: float)
 
 @export_group("Engine")
 @export var max_speed := 95.0        ## m/s (~340 km/h)
@@ -58,6 +60,12 @@ signal landed(impact: float)   ## came down from a jump; impact is the touchdown
 @export var air_thrust := 0.35       ## fraction of thrust available while flying
 @export var air_grip := 1.1          ## lateral grip while flying: enough to bend a flight, not to save a bad one
 @export var hard_landing := 27.0     ## touchdown speed (m/s) above which a landing hurts; a clean crest lands at ~20
+
+@export_group("Racecraft")
+@export var shift_speed := 15.0      ## sideways kick of a side-shift, m/s
+@export var shift_cooldown := 0.9
+@export var draft_thrust := 0.3      ## extra thrust, as a fraction, in a full slipstream
+@export var draft_top_speed := 0.07  ## extra top speed, as a fraction, in a full slipstream
 
 @export_group("Visual")
 @export var team_color := Color(0.9, 0.2, 0.3)
@@ -116,7 +124,22 @@ var scraping := false
 var air_time := 0.0          ## seconds since the ship last hovered over track
 var off_track_time := 0.0    ## maintained by Race; rescue when it runs long
 
+## 0..1: how deep this ship sits in another's slipstream. Race sets the target each frame.
+var draft_target := 0.0
+var draft := 0.0
+## Speed class factor (see `apply_speed_class`): 1 = the tuning in the exports above.
+var speed_scale := 1.0
+
 var _up := Vector3.UP
+var _shift_wait := 0.0
+var _shift_roll := 0.0
+var _wall_point := Vector3.ZERO
+var _wall_normal := Vector3.RIGHT
+var _ribbons: Array[RibbonTrail] = []
+var _hover_glow: MeshInstance3D
+var _sparks: GPUParticles3D
+var _shield_mat: ShaderMaterial
+var _shield_flare := 0.0
 var _bank := 0.0
 var _pitch := 0.0
 var _throttle := 0.0
@@ -146,6 +169,61 @@ func _ready() -> void:
 	ground_ray.target_position = Vector3(0, -30, 0)
 	_shield_mesh = _make_shield_mesh()
 	add_child(_shield_mesh)
+	_make_effects()
+
+
+## Light trails from both engines, a glow on the road under the hull, sparks for the walls.
+func _make_effects() -> void:
+	if OS.has_environment("AG_NO_EXHAUST"):
+		return
+	# The ribbons replace the old puff trail.
+	trail.emitting = false
+	trail.visible = false
+	var tint := team_color.lerp(Color(0.75, 0.95, 1.0), 0.35)
+	for flame in _flames:
+		var ribbon := RibbonTrail.new()
+		ribbon.source = flame
+		ribbon.color = tint
+		add_child(ribbon)
+		_ribbons.append(ribbon)
+	respawned.connect(func():
+		for r in _ribbons:
+			r.clear())
+	_hover_glow = Fx.glow_quad(Vector2(4.6, 7.0), team_color.lerp(Color(0.5, 0.9, 1.0), 0.5))
+	_hover_glow.top_level = true
+	add_child(_hover_glow)
+	_sparks = Fx.sparks()
+	_sparks.top_level = true
+	add_child(_sparks)
+
+
+## Speed classes rescale time, not the handling: every speed by `k`, every acceleration by
+## `k * k`, every rate by `k`. The racing lines, jump arcs and braking points stay where they
+## are; everything just arrives sooner.
+func apply_speed_class(k: float) -> void:
+	speed_scale *= k
+	max_speed *= k
+	boost_strength *= k
+	shift_speed *= k
+	hard_landing *= k
+	thrust *= k * k
+	brake_force *= k * k
+	gravity *= k * k
+	hover_spring *= k * k
+	track_pull *= k * k
+	for rate in ["drag", "airbrake_drag", "overspeed_decay", "turn_rate", "airbrake_turn", "lateral_grip",
+			"airbrake_grip", "scrape_drag", "air_grip", "hover_damping", "align_speed", "air_align_speed"]:
+		set(rate, get(rate) * k)
+
+
+## A quick sideways hop, +1 to the right. Costs nothing but has a short cooldown.
+func side_shift(direction: float) -> void:
+	if _shift_wait > 0.0 or not controls_enabled or is_eliminated or not grounded:
+		return
+	_shift_wait = shift_cooldown
+	_shift_roll = signf(direction)
+	velocity += global_transform.basis.x * signf(direction) * shift_speed
+	side_shifted.emit(signf(direction))
 
 
 ## Swap the placeholder hull for an imported model: hide the box parts, tint "Accent"
@@ -188,11 +266,15 @@ func respawn(at: Transform3D = spawn_transform) -> void:
 	speed = 0.0
 	air_time = 0.0
 	off_track_time = 0.0
+	respawned.emit()
 
 
-func boost() -> void:
-	velocity += -global_transform.basis.z * boost_strength
+func boost(strength := 1.0) -> void:
+	velocity += -global_transform.basis.z * boost_strength * strength
 	_boost_vis = 1.0
+	if not is_eliminated and is_inside_tree():
+		var back := global_transform.translated_local(Vector3(0, 0, 2.6))
+		Fx.ring(get_parent(), back, Color(0.6, 0.9, 1.0), 7.0 * strength, 0.4)
 	boosted.emit()
 
 
@@ -216,7 +298,7 @@ func give_item(new_item: int) -> void:
 
 
 func use_item() -> void:
-	if item == Items.NONE or not controls_enabled or is_eliminated:
+	if item == Items.NONE or not controls_enabled or is_eliminated or finished:
 		return
 	var used := item
 	item = Items.NONE
@@ -248,6 +330,7 @@ func apply_damage(amount: float, by_name := "", weapon := "") -> bool:
 	if is_eliminated or finished:
 		return false
 	if shield_time > 0.0:
+		_shield_flare = 1.0
 		return false
 	if not invulnerable:
 		energy -= amount
@@ -281,6 +364,12 @@ func _eliminate() -> void:
 	engine_light.visible = false
 	$Headlight.visible = false
 	_shield_mesh.visible = false
+	for r in _ribbons:
+		r.visible = false
+	if _hover_glow:
+		_hover_glow.visible = false
+	if _sparks:
+		_sparks.emitting = false
 	set_deferred("collision_layer", 0)
 	set_deferred("collision_mask", 0)
 	Explosion.spawn(get_parent(), global_position, 2.2)
@@ -291,15 +380,11 @@ func _make_shield_mesh() -> MeshInstance3D:
 	var sphere := SphereMesh.new()
 	sphere.radius = 1.0
 	sphere.height = 2.0
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.albedo_color = Color(0.3, 0.8, 1.0, 0.16)
+	_shield_mat = ShaderMaterial.new()
+	_shield_mat.shader = preload("res://shaders/shield.gdshader")
 	var mi := MeshInstance3D.new()
 	mi.mesh = sphere
-	mi.material_override = mat
+	mi.material_override = _shield_mat
 	mi.scale = Vector3(2.0, 1.1, 3.1)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.visible = false
@@ -311,6 +396,8 @@ func _physics_process(delta: float) -> void:
 		return
 	shield_time = maxf(shield_time - delta, 0.0)
 	_immunity = maxf(_immunity - delta, 0.0)
+	_shift_wait = maxf(_shift_wait - delta, 0.0)
+	draft = move_toward(draft, draft_target if grounded else 0.0, delta * (1.2 if draft_target > draft else 2.5))
 	if not controls_enabled:
 		throttle_in = 0.0
 		brake_in = 0.0
@@ -350,7 +437,7 @@ func _physics_process(delta: float) -> void:
 	# --- Planar velocity: thrust, drag, grip
 	var v_plane := velocity - _up * velocity.dot(_up)
 	var authority := 1.0 if grounded else air_thrust
-	v_plane += fwd * (throttle_in * thrust * authority - brake_in * brake_force * authority) * delta
+	v_plane += fwd * (throttle_in * thrust * (1.0 + draft_thrust * draft) * authority - brake_in * brake_force * authority) * delta
 	v_plane -= v_plane * drag * delta
 	if airbraking:
 		v_plane -= v_plane * airbrake_drag * delta
@@ -364,8 +451,9 @@ func _physics_process(delta: float) -> void:
 		v_plane -= fwd * (forward_speed + 8.0)
 	# Boost pads push past max_speed; bleed the excess off gradually instead of clamping.
 	var planar_speed := v_plane.length()
-	if planar_speed > max_speed:
-		v_plane = v_plane / planar_speed * lerpf(planar_speed, max_speed, minf(overspeed_decay * delta, 1.0))
+	var top := max_speed * (1.0 + draft_top_speed * draft)
+	if planar_speed > top:
+		v_plane = v_plane / planar_speed * lerpf(planar_speed, top, minf(overspeed_decay * delta, 1.0))
 
 	# --- Vertical: the ship keeps its momentum. Hovering, a spring-damper holds it at hover
 	# height; it pushes up as hard as it needs to but pulls down only by `track_pull`, so when
@@ -373,11 +461,11 @@ func _physics_process(delta: float) -> void:
 	var v_up := velocity.dot(_up)
 	var gravity_push := Vector3.ZERO
 	if grounded:
-		if air_time > 0.35:
+		if air_time > 0.35 / speed_scale:
 			var impact := maxf(-v_up, 0.0)
-			landed.emit(impact)
+			landed.emit(impact / speed_scale)
 			if impact > hard_landing:
-				apply_damage((impact - hard_landing) * 0.9)
+				apply_damage((impact - hard_landing) * 0.9 / speed_scale)
 		air_time = 0.0
 		var lift := hover_spring * (hover_height - dist) - hover_damping * v_up
 		v_up += maxf(lift, -(gravity + track_pull)) * delta
@@ -402,6 +490,8 @@ func _physics_process(delta: float) -> void:
 				apply_damage(knock * ship_hit_damage)
 		elif absf(c.get_normal().dot(_up)) < 0.5:
 			touching_wall = true
+			_wall_point = c.get_position()
+			_wall_normal = c.get_normal()
 	if touching_wall:
 		if not scraping:
 			# First contact is the impact; after that it's a scrape.
@@ -423,7 +513,8 @@ func _physics_process(delta: float) -> void:
 
 func _update_visuals(lateral: float, delta: float) -> void:
 	# Roll into the turn, plus a bit extra when sliding sideways.
-	_bank = lerpf(_bank, steer_in * bank_angle + lateral * 0.01, minf(8.0 * delta, 1.0))
+	_shift_roll *= exp(-5.0 * delta)
+	_bank = lerpf(_bank, steer_in * bank_angle + lateral * 0.01 / speed_scale - _shift_roll * 0.9, minf(8.0 * delta, 1.0))
 	var target_pitch := _throttle * pitch_angle - brake_in * brake_dip
 	if not grounded and speed > 5.0:
 		# Flying: nose up on the way up, down on the way down.
@@ -434,9 +525,12 @@ func _update_visuals(lateral: float, delta: float) -> void:
 	var spin_yaw := sin(_spin * 14.0) * _spin * 0.9
 	body.rotation = Vector3(_pitch + (model_pitch_trim if model_path != "" else 0.0), spin_yaw, _bank)
 	_shield_mesh.visible = shield_time > 0.0
+	_shield_flare *= exp(-6.0 * delta)
 	if _shield_mesh.visible:
 		# Flicker out over the last second.
-		_shield_mesh.transparency = 0.0 if shield_time > 1.0 else (0.5 + 0.5 * sin(shield_time * 40.0)) * 0.8
+		_shield_mat.set_shader_parameter("level", 1.0 if shield_time > 1.0 else 0.35 + 0.65 * absf(sin(shield_time * 20.0)))
+		_shield_mat.set_shader_parameter("flare", _shield_flare)
+	_update_effects()
 	_boost_vis *= exp(-1.8 * delta)
 	var glow := 0.4 + _throttle * 1.4 + _boost_vis * 1.5
 	_engine_mat.emission_energy_multiplier = glow
@@ -467,3 +561,30 @@ func _update_visuals(lateral: float, delta: float) -> void:
 	for c in _cores:
 		c.scale = Vector3.ONE * core
 		c.transparency = 0.0
+
+
+func _update_effects() -> void:
+	if _hover_glow == null:
+		return
+	var ratio := clampf(speed / max_speed, 0.0, 1.3)
+	# Trails: a hint at cruise, bright flat out, flaring on a boost and in a slipstream.
+	var trail_level := ratio * ratio * (0.25 + 0.5 * _throttle) + _boost_vis * 0.9 + draft * 0.35
+	for r in _ribbons:
+		r.level = trail_level
+		r.seconds = 0.32 + 0.3 * _boost_vis
+	# The hover field lights the road under the hull, fading as the ship climbs.
+	_hover_glow.visible = ground_ray.is_colliding()
+	if _hover_glow.visible:
+		var hit := ground_ray.get_collision_point()
+		var normal := ground_ray.get_collision_normal()
+		var height := global_position.distance_to(hit)
+		var fwd := -global_transform.basis.z
+		fwd = (fwd - normal * fwd.dot(normal)).normalized()
+		_hover_glow.global_transform = Transform3D(Basis(fwd.cross(normal), normal, -fwd), hit + normal * 0.09)
+		var strength := clampf(1.0 - (height - hover_height) / 5.0, 0.0, 1.0) * (0.3 + 0.25 * _throttle + 0.5 * _boost_vis)
+		_hover_glow.transparency = 1.0 - clampf(strength, 0.0, 1.0)
+	# Sparks fly from where the hull meets the wall, back along the direction of travel.
+	_sparks.emitting = scraping and speed > 12.0
+	if scraping:
+		var away := (_wall_normal - velocity.normalized() * 1.4 + _up * 0.5).normalized()
+		_sparks.global_transform = Transform3D(Basis.looking_at(-away, _up), _wall_point)

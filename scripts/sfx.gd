@@ -35,6 +35,11 @@ const GENERATORS := {
 	"pad_bell": ["bell", "Large bell", 1.0],      # the player's own pad: the big one
 	"pad_bell_far": ["bell", "", -8.0],           # other ships' pads: shorter ring, well down
 	"finish": ["finish", "", -3.0],
+	"side_shift": ["boost", "Nudge", -3.0],
+	"ui_move": ["beep", "", -14.0],
+	"ui_accept": ["pickup", "", -8.0],
+	"ui_back": ["airbrake", "", -10.0],
+	"new_record": ["finish", "New record", -3.0],
 }
 const RATE := 44100
 

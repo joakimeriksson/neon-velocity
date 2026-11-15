@@ -18,6 +18,7 @@ func _build(box: VBoxContainer) -> Control:
 	_slider(box, "Music", "audio/music", UiTheme.PINK)
 	_slider(box, "Effects", "audio/effects", HudCanvas.AMBER)
 	_slider(box, "Engines", "audio/engines", HudCanvas.GREEN)
+	_slider(box, "Announcer", "audio/voice", Color("8fd6ff"))
 	_section(box, "Picture")
 	if not OS.has_feature("web"):
 		_toggle(box, "Fullscreen", "video/fullscreen")
@@ -28,6 +29,7 @@ func _build(box: VBoxContainer) -> Control:
 	quality.value_changed.connect(func(v): Settings.set_value("video/quality", int(v)))
 	box.add_child(quality)
 	_rows["video/quality"] = quality
+	_toggle(box, "Speed effects", "video/speed_fx")
 	_section(box, "Driving")
 	_toggle(box, "Controller rumble", "game/rumble")
 	_toggle(box, "Camera shake", "game/camera_shake")

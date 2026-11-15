@@ -47,13 +47,22 @@ var frames: Array[Transform3D] = []
 ## Corner radius (m) at each frame, capped at 2000 on the straights. The AI brakes by it.
 var radius := PackedFloat32Array()
 
-var _floor_mat: StandardMaterial3D
-var _wall_mat: StandardMaterial3D
+## Per frame, signed: how tight the corner coming up is (0..1), positive for a left-hander.
+## The outside wall of the corner shows it as marching chevrons.
+var corner := PackedFloat32Array()
+## Daylight circuits turn the emissive paint down (env "glow_bloom" 0 means no bloom to feed).
+var line_glow := 1.0
+var wet := 1.0
+
+var _floor_mat: ShaderMaterial
+var _wall_mat: ShaderMaterial
 var _strip_mat: StandardMaterial3D
-var _start_mat: StandardMaterial3D
-var _boost_mat: StandardMaterial3D
+var _start_mat: ShaderMaterial
+var _boost_mat: ShaderMaterial
 var _pit_mat: StandardMaterial3D
 var _tunnel_mat: StandardMaterial3D
+var _start_pods: Array[StandardMaterial3D] = []
+var _start_light: OmniLight3D
 var _pad_ready_at := {}   # Area3D -> time (s) the item pad comes back
 
 
@@ -71,6 +80,8 @@ func load_def(def: Dictionary) -> void:
 	neon_color = def.get("neon", neon_color)
 	road_roughness = def.get("env", {}).get("road_roughness", 0.35)
 	road_metallic = def.get("env", {}).get("road_metallic", 0.4)
+	wet = 1.0 if def.get("env", {}).get("rain", true) else 0.25
+	line_glow = def.get("env", {}).get("line_glow", 1.0)
 	light_color = def.get("light_color", light_color)
 	lit_sections = def.get("lit_sections", [])
 	relief = def.get("relief", [])
@@ -111,6 +122,7 @@ func build() -> void:
 	_add_mesh(_build_walls(), _wall_mat, true)
 	_add_mesh(_build_strips(), _strip_mat, false)
 	_add_mesh(_build_start_line(), _start_mat, false)
+	_add_start_gantry()
 	_add_gap_edges()
 	_add_tunnels()
 	_add_boost_pads()
@@ -123,13 +135,27 @@ func build() -> void:
 func _measure_radius() -> void:
 	var n := frames.size()
 	radius.resize(n)
+	var turn_sign := PackedFloat32Array()
+	turn_sign.resize(n)
 	for i in n:
 		var a: Vector3 = -frames[(i - 3 + n) % n].basis.z
 		var b: Vector3 = -frames[(i + 3) % n].basis.z
 		a.y = 0.0
 		b.y = 0.0
-		var angle := absf(a.normalized().signed_angle_to(b.normalized(), Vector3.UP))
+		var signed := a.normalized().signed_angle_to(b.normalized(), Vector3.UP)
+		var angle := absf(signed)
 		radius[i] = minf(6.0 * step / maxf(angle, 0.00001), 2000.0)
+		turn_sign[i] = signf(signed)
+	# Warn from 50 m before a corner, strongest where it is tightest.
+	corner.resize(n)
+	for i in n:
+		var worst := 0.0
+		for k in 26:
+			var j := (i + k) % n
+			var tight := clampf((120.0 - radius[j]) / 70.0, 0.0, 1.0) * (1.0 - k / 40.0)
+			if tight > absf(worst):
+				worst = tight * turn_sign[j]
+		corner[i] = worst
 
 
 ## Where the ship starts: on the start line, hovering, facing down the track.
@@ -435,14 +461,21 @@ func _build_walls() -> ArrayMesh:
 		# Left wall faces +x (inward), right wall faces -x. The left wall is the mirror image,
 		# so its vertices run the other way round: trimesh collision only registers front
 		# faces, and with the right wall's order the left one was pass-through from the track.
+		# Vertex colour: the corner warning, on the outside wall only (right wall of a left-hander).
+		var c0 := corner[i]
+		var c1 := corner[(i + 1) % frames.size()]
 		if not is_open(i, -1.0):
+			var l0 := Color(maxf(-c0, 0.0), 0, 0)
+			var l1 := Color(maxf(-c1, 0.0), 0, 0)
 			_quad(st,
 				_edge(i + 1, -1), _edge(i + 1, -1, wall_height), _edge(i, -1, wall_height), _edge(i, -1),
-				f1.basis.x, f1.basis.x, f0.basis.x, f0.basis.x, uv3, uv2, uv1, uv0)
+				f1.basis.x, f1.basis.x, f0.basis.x, f0.basis.x, uv3, uv2, uv1, uv0, [l1, l1, l0, l0])
 		if not is_open(i, 1.0):
+			var r0 := Color(maxf(c0, 0.0), 0, 0)
+			var r1 := Color(maxf(c1, 0.0), 0, 0)
 			_quad(st,
 				_edge(i, 1), _edge(i, 1, wall_height), _edge(i + 1, 1, wall_height), _edge(i + 1, 1),
-				-f0.basis.x, -f0.basis.x, -f1.basis.x, -f1.basis.x, uv0, uv1, uv2, uv3)
+				-f0.basis.x, -f0.basis.x, -f1.basis.x, -f1.basis.x, uv0, uv1, uv2, uv3, [r0, r0, r1, r1])
 	return st.commit()
 
 
@@ -466,19 +499,25 @@ func _build_strips() -> ArrayMesh:
 func _build_start_line() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var n := frames[0].basis.y
-	_quad(st,
-		_edge(0, -1, 0.04), _edge(0, 1, 0.04), _edge(1, 1, 0.04), _edge(1, -1, 0.04),
-		n, n, n, n, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+	# A chequered band three frames deep.
+	for i in 3:
+		var n0 := frames[i].basis.y
+		var n1 := frames[i + 1].basis.y
+		_quad(st,
+			_edge(i, -1, 0.04), _edge(i, 1, 0.04), _edge(i + 1, 1, 0.04), _edge(i + 1, -1, 0.04),
+			n0, n0, n1, n1, Vector2(0, i / 3.0), Vector2(1, i / 3.0), Vector2(1, (i + 1) / 3.0), Vector2(0, (i + 1) / 3.0))
 	return st.commit()
 
 
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3,
 		na: Vector3, nb: Vector3, nc: Vector3, nd: Vector3,
-		ua: Vector2, ub: Vector2, uc: Vector2, ud: Vector2) -> void:
+		ua: Vector2, ub: Vector2, uc: Vector2, ud: Vector2, colors: Array = []) -> void:
 	# Clockwise winding: Godot treats clockwise faces as front, and trimesh collision
 	# only registers front faces, so a flipped track would be fall-through from above.
-	for tri in [[a, na, ua], [c, nc, uc], [b, nb, ub], [a, na, ua], [d, nd, ud], [c, nc, uc]]:
+	var cols := colors if colors.size() == 4 else [null, null, null, null]
+	for tri in [[a, na, ua, cols[0]], [c, nc, uc, cols[2]], [b, nb, ub, cols[1]], [a, na, ua, cols[0]], [d, nd, ud, cols[3]], [c, nc, uc, cols[2]]]:
+		if tri[3] != null:
+			st.set_color(tri[3])
 		st.set_normal(tri[1])
 		st.set_uv(tri[2])
 		st.add_vertex(tri[0])
@@ -508,9 +547,11 @@ func _add_boost_pads() -> void:
 			var i := (start + k) % n
 			var up0 := frames[i].basis.y
 			var up1 := frames[(i + 1) % n].basis.y
+			var v0 := float(k) / pad_frames
+			var v1 := float(k + 1) / pad_frames
 			_quad(st,
 				_edge(i, -0.4, 0.05), _edge(i, 0.4, 0.05), _edge(i + 1, 0.4, 0.05), _edge(i + 1, -0.4, 0.05),
-				up0, up0, up1, up1, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+				up0, up0, up1, up1, Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1))
 		_add_mesh(st.commit(), _boost_mat, false)
 
 		var mid := frames[(start + pad_frames / 2) % n]
@@ -668,16 +709,13 @@ func _add_item_pads() -> void:
 				var i := (start + k) % n
 				var up0 := frames[i].basis.y
 				var up1 := frames[(i + 1) % n].basis.y
+				var v0 := float(k) / pad_frames
+				var v1 := float(k + 1) / pad_frames
 				_quad(st,
 					_edge(i, minf(inner, outer), 0.05), _edge(i, maxf(inner, outer), 0.05),
 					_edge(i + 1, maxf(inner, outer), 0.05), _edge(i + 1, minf(inner, outer), 0.05),
-					up0, up0, up1, up1, Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = Color(0.85, 0.3, 1.0)
-			mat.emission_enabled = true
-			mat.emission = Color(0.85, 0.3, 1.0)
-			mat.emission_energy_multiplier = 3.0
-			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+					up0, up0, up1, up1, Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1))
+			var mat := _marking(1, Color(0.85, 0.3, 1.0), Color.WHITE, 3.0)
 			_add_mesh(st.commit(), mat, false)
 
 			var mid := frames[(start + pad_frames / 2) % n]
@@ -692,7 +730,7 @@ func _add_item_pads() -> void:
 			add_child(area)
 
 
-func _on_item_pad_entered(body: Node3D, area: Area3D, mat: StandardMaterial3D) -> void:
+func _on_item_pad_entered(body: Node3D, area: Area3D, mat: ShaderMaterial) -> void:
 	if not (body is Ship):
 		return
 	# Game time, not wall-clock, so pads behave the same in slow motion or a fast headless sim.
@@ -701,10 +739,10 @@ func _on_item_pad_entered(body: Node3D, area: Area3D, mat: StandardMaterial3D) -
 		return
 	if body.collect_item_pad():
 		_pad_ready_at[area] = now + item_pad_cooldown
-		mat.emission_energy_multiplier = 0.15
+		mat.set_shader_parameter("ready", 0.0)
 		var tween := create_tween()
 		tween.tween_interval(item_pad_cooldown)
-		tween.tween_property(mat, ^"emission_energy_multiplier", 3.0, 0.3)
+		tween.tween_property(mat, ^"shader_parameter/ready", 1.0, 0.3)
 
 
 ## Pit lane: a dashed recharge strip along one edge. Race checks `in_pit()` each frame.
@@ -831,19 +869,20 @@ func _add_void_floor() -> void:
 
 
 func _make_materials() -> void:
-	_floor_mat = StandardMaterial3D.new()
-	_floor_mat.albedo_color = Color(0.13, 0.13, 0.16)
-	_floor_mat.roughness = road_roughness
-	_floor_mat.metallic = road_metallic
-	_floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_floor_mat = ShaderMaterial.new()
+	_floor_mat.shader = preload("res://shaders/road.gdshader")
+	_floor_mat.set_shader_parameter("width", track_width)
+	_floor_mat.set_shader_parameter("neon", neon_color)
+	_floor_mat.set_shader_parameter("roughness_base", road_roughness)
+	_floor_mat.set_shader_parameter("metallic_base", road_metallic)
+	_floor_mat.set_shader_parameter("line_glow", line_glow)
+	_floor_mat.set_shader_parameter("wet", wet)
 
-	_wall_mat = StandardMaterial3D.new()
-	_wall_mat.albedo_color = Color(0.1, 0.1, 0.16)
-	_wall_mat.roughness = 0.6
-	_wall_mat.emission_enabled = true
-	_wall_mat.emission = neon_color * 0.6
-	_wall_mat.emission_energy_multiplier = 0.25
-	_wall_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_wall_mat = ShaderMaterial.new()
+	_wall_mat.shader = preload("res://shaders/wall.gdshader")
+	_wall_mat.set_shader_parameter("wall_height", wall_height)
+	_wall_mat.set_shader_parameter("neon", neon_color)
+	_wall_mat.set_shader_parameter("glow", line_glow)
 
 	_strip_mat = StandardMaterial3D.new()
 	_strip_mat.albedo_color = neon_color
@@ -852,19 +891,9 @@ func _make_materials() -> void:
 	_strip_mat.emission_energy_multiplier = 3.0
 	_strip_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
-	_start_mat = StandardMaterial3D.new()
-	_start_mat.albedo_color = Color(1.0, 0.4, 0.9)
-	_start_mat.emission_enabled = true
-	_start_mat.emission = Color(1.0, 0.4, 0.9)
-	_start_mat.emission_energy_multiplier = 3.0
-	_start_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-	_boost_mat = StandardMaterial3D.new()
-	_boost_mat.albedo_color = Color(1.0, 0.55, 0.1)
-	_boost_mat.emission_enabled = true
-	_boost_mat.emission = Color(1.0, 0.55, 0.1)
-	_boost_mat.emission_energy_multiplier = 2.5
-	_boost_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_start_mat = _marking(2, Color(1.0, 0.4, 0.9), Color.WHITE, 2.2)
+	_start_mat.set_shader_parameter("cells", Vector2(roundf(track_width / 1.5), 4.0))
+	_boost_mat = _marking(0, Color(1.0, 0.5, 0.08), Color(1.0, 0.95, 0.7), 2.6)
 
 	_tunnel_mat = StandardMaterial3D.new()
 	_tunnel_mat.albedo_color = Color(0.11, 0.12, 0.16)
@@ -878,3 +907,108 @@ func _make_materials() -> void:
 	_pit_mat.emission = Color(0.2, 1.0, 0.65)
 	_pit_mat.emission_energy_multiplier = 2.0
 	_pit_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+
+## A lit road marking (see shaders/track_marking.gdshader for the kinds).
+func _marking(kind: int, color: Color, color_b: Color, energy: float) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://shaders/track_marking.gdshader")
+	mat.set_shader_parameter("kind", kind)
+	mat.set_shader_parameter("color", color)
+	mat.set_shader_parameter("color_b", color_b)
+	mat.set_shader_parameter("energy", energy * lerpf(0.55, 1.0, line_glow))
+	return mat
+
+
+## The arch over the start line: two pylons, a chequered banner in the circuit's neon, and
+## five start-light pods facing the grid. Race drives the pods with `set_start_lights`.
+func _add_start_gantry() -> void:
+	_start_pods.clear()
+	var f := frames[0]
+	var half := track_width * 0.5 + 1.3
+	var top := 9.2
+	var frame_mat := StandardMaterial3D.new()
+	frame_mat.albedo_color = Color(0.09, 0.1, 0.13)
+	frame_mat.metallic = 0.7
+	frame_mat.roughness = 0.4
+	var gantry := Node3D.new()
+	gantry.name = "StartGantry"
+	gantry.transform = f
+	add_child(gantry)
+	for side in [-1.0, 1.0]:
+		var pylon := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(1.1, top + 1.0, 1.6)
+		pylon.mesh = box
+		pylon.material_override = frame_mat
+		pylon.position = Vector3(side * half, (top + 1.0) * 0.5 - 1.0, 0)
+		gantry.add_child(pylon)
+		# A neon tube up the inside edge of each pylon.
+		var tube := MeshInstance3D.new()
+		var tube_box := BoxMesh.new()
+		tube_box.size = Vector3(0.14, top - 0.6, 0.14)
+		tube.mesh = tube_box
+		tube.material_override = _strip_mat
+		tube.position = Vector3(side * (half - 0.62), (top - 0.6) * 0.5, 0.86)
+		gantry.add_child(tube)
+	var beam := MeshInstance3D.new()
+	var beam_box := BoxMesh.new()
+	beam_box.size = Vector3(half * 2.0 + 1.1, 1.9, 1.2)
+	beam.mesh = beam_box
+	beam.material_override = frame_mat
+	beam.position = Vector3(0, top, 0)
+	gantry.add_child(beam)
+	# The banner shows on both faces: ships approach it from behind on every lap.
+	for face in [-1.0, 1.0]:
+		var banner := MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		quad.size = Vector2(half * 2.0 - 0.4, 1.5)
+		banner.mesh = quad
+		var banner_mat := _marking(3, neon_color, Color.WHITE, 2.0)
+		banner_mat.set_shader_parameter("cells", Vector2(roundf(track_width * 1.2), 4.0))
+		banner.material_override = banner_mat
+		banner.position = Vector3(0, top, face * 0.62)
+		gantry.add_child(banner)
+	# Start lights hang under the beam, facing the grid (which waits at +z).
+	var pod_mesh := SphereMesh.new()
+	pod_mesh.radius = 0.42
+	pod_mesh.height = 0.84
+	for i in 5:
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.05, 0.02, 0.02)
+		mat.emission_enabled = true
+		mat.emission = Color(1.0, 0.1, 0.05)
+		mat.emission_energy_multiplier = 0.0
+		mat.roughness = 0.2
+		var pod := MeshInstance3D.new()
+		pod.mesh = pod_mesh
+		pod.material_override = mat
+		pod.position = Vector3((i - 2) * 1.5, top - 1.5, 0.5)
+		gantry.add_child(pod)
+		_start_pods.append(mat)
+		var hood := MeshInstance3D.new()
+		var hood_box := BoxMesh.new()
+		hood_box.size = Vector3(1.1, 1.2, 0.5)
+		hood.mesh = hood_box
+		hood.material_override = frame_mat
+		hood.position = Vector3((i - 2) * 1.5, top - 1.45, 0.05)
+		gantry.add_child(hood)
+	_start_light = OmniLight3D.new()
+	_start_light.light_energy = 0.0
+	_start_light.omni_range = 42.0
+	_start_light.omni_attenuation = 1.2
+	_start_light.position = Vector3(0, top - 2.5, 5.0)
+	gantry.add_child(_start_light)
+
+
+## Start lights: 0 = dark, 1..3 = that many thirds lit red, 4 = all green.
+func set_start_lights(stage: int) -> void:
+	var lit: int = [0, 2, 4, 5, 5][clampi(stage, 0, 4)]
+	var go := stage >= 4
+	for i in _start_pods.size():
+		var mat := _start_pods[i]
+		mat.emission = Color(0.15, 1.0, 0.35) if go else Color(1.0, 0.1, 0.05)
+		mat.emission_energy_multiplier = 5.0 if i < lit else 0.0
+	if _start_light:
+		_start_light.light_color = Color(0.2, 1.0, 0.4) if go else Color(1.0, 0.15, 0.08)
+		_start_light.light_energy = [0.0, 1.5, 3.0, 4.5, 6.0][clampi(stage, 0, 4)]

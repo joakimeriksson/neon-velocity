@@ -17,6 +17,9 @@ const NIGHT_RAIN := {
 	"ambient": 0.45, "fog_color": Color(0.4, 0.2, 0.12), "fog_density": 0.0035,
 	"vol_fog": 0.016, "vol_fog_albedo": Color(0.7, 0.55, 0.5), "vol_fog_emission": Color(0.3, 0.13, 0.06),
 	"rain": true, "window_lit": 1.0, "exposure": 1.0,
+	# Overcast, the deck lit from below by the city; the moon is a glow behind it.
+	"clouds": 0.82, "cloud_lit": Color(0.5, 0.26, 0.16), "cloud_dark": Color(0.06, 0.04, 0.06), "stars": 0.7,
+	"disc_size": 0.045, "disc_energy": 1.6, "sky_curve": 0.3,
 }
 const DUSK := {
 	"sky_top": Color(0.12, 0.06, 0.2), "sky_horizon": Color(1.0, 0.45, 0.18),
@@ -24,13 +27,17 @@ const DUSK := {
 	"ambient": 0.6, "fog_color": Color(0.6, 0.3, 0.2), "fog_density": 0.002,
 	"vol_fog": 0.008, "vol_fog_albedo": Color(0.9, 0.6, 0.45), "vol_fog_emission": Color(0.35, 0.15, 0.06),
 	"rain": false, "window_lit": 0.6, "exposure": 0.95,
+	"clouds": 0.45, "cloud_lit": Color(1.0, 0.55, 0.3), "cloud_dark": Color(0.2, 0.1, 0.22), "stars": 0.8,
+	"disc_size": 0.05, "disc_energy": 1.2, "sky_curve": 0.45,
 }
 const DAY := {
 	"sky_top": Color(0.22, 0.45, 0.85), "sky_horizon": Color(0.78, 0.85, 0.92),
 	"sun_color": Color(1.0, 0.96, 0.9), "sun_energy": 2.6, "sun_rotation": Vector3(-48, 35, 0),
 	"ambient": 1.6, "fog_color": Color(0.7, 0.78, 0.9), "fog_density": 0.0012,
 	"vol_fog": 0.004, "vol_fog_albedo": Color(0.9, 0.92, 0.95), "vol_fog_emission": Color(0.06, 0.07, 0.08),
-	"rain": false, "window_lit": 0.05, "exposure": 0.85,
+	"rain": false, "window_lit": 0.05, "exposure": 0.85, "line_glow": 0.55,
+	"clouds": 0.38, "cloud_lit": Color(1.0, 1.0, 1.0), "cloud_dark": Color(0.6, 0.66, 0.76), "stars": 0.0,
+	"disc_size": 0.03, "disc_energy": 1.0, "sky_curve": 0.4,
 }
 const SUNRISE := {
 	"sky_top": Color(0.2, 0.36, 0.64), "sky_horizon": Color(0.95, 0.78, 0.64),
@@ -42,6 +49,9 @@ const SUNRISE := {
 	# Morning mist lying in the valleys: thick below fog_height, clear above it.
 	"fog_height": -12.0, "fog_height_density": 0.035, "aerial": 0.3,
 	"glow_bloom": 0.0, "glow_intensity": 0.8, "road_roughness": 0.8, "road_metallic": 0.0,
+	"line_glow": 0.4,
+	"clouds": 0.42, "cloud_lit": Color(1.0, 0.86, 0.76), "cloud_dark": Color(0.5, 0.5, 0.62), "stars": 0.0,
+	"disc_size": 0.035, "disc_energy": 1.0, "sky_curve": 0.4,
 }
 const DAWN := {
 	"sky_top": Color(0.3, 0.36, 0.45), "sky_horizon": Color(0.65, 0.62, 0.6),

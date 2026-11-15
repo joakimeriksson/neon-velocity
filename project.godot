@@ -16,6 +16,7 @@ Settings="*res://scripts/settings.gd"
 Game="*res://scripts/game.gd"
 Music="*res://scripts/music.gd"
 Sfx="*res://scripts/sfx.gd"
+Voice="*res://scripts/voice.gd"
 Highscores="*res://scripts/highscores.gd"
 PerfOverlay="*res://scripts/perf_overlay.gd"
 

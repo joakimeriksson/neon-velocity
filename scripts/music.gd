@@ -21,6 +21,7 @@ const SILENT_DB := -60.0
 @export var cutoff_idle := 900.0        ## Hz at a standstill
 @export var cutoff_flat_out := 20000.0  ## Hz at top speed
 @export var cutoff_smoothing := 2.5
+@export var cutoff_paused := 420.0      ## Hz behind the pause menu: the track carries on next door
 
 var _tracks: Array[String] = []   ## the current playlist, in play order
 var _library: Array[String] = []  ## everything in MUSIC_DIR
@@ -63,12 +64,18 @@ func _start() -> void:
 
 func _process(delta: float) -> void:
 	_check_handover()
-	if not speed_response or _filter == null or not is_instance_valid(_ship):
+	if _filter == null:
 		return
-	# Ease the cutoff toward the ship's speed so the mix breathes with the throttle.
-	var t := clampf(_ship.speed / maxf(_ship.max_speed, 1.0), 0.0, 1.0)
-	var target := lerpf(cutoff_idle, cutoff_flat_out, ease(t, 0.45))
-	_cutoff = lerpf(_cutoff, target, clampf(delta * cutoff_smoothing, 0.0, 1.0))
+	var target := cutoff_flat_out
+	if get_tree().paused:
+		target = cutoff_paused
+	elif speed_response and is_instance_valid(_ship):
+		# Ease the cutoff toward the ship's speed so the mix breathes with the throttle.
+		var t := clampf(_ship.speed / maxf(_ship.max_speed, 1.0), 0.0, 1.0)
+		target = lerpf(cutoff_idle, cutoff_flat_out, ease(t, 0.45))
+	# Closing is quick (the pause lands at once), opening takes its time.
+	var rate := cutoff_smoothing * (4.0 if target < _cutoff else 1.0)
+	_cutoff = lerpf(_cutoff, target, clampf(delta * rate, 0.0, 1.0))
 	_filter.cutoff_hz = _cutoff
 
 

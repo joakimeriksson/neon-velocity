@@ -12,7 +12,8 @@ var _letter_labels: Array[Label] = []
 var _initials := [0, 0, 0]
 var _cursor := 0
 var _entering := false
-var _track := 0
+var _track := 0          ## index into TrackDefs.ALL, or one past it for the championship
+var _class := 1
 var _highlight := -1
 var _table_title: Label
 var _grid: GridContainer
@@ -21,6 +22,9 @@ var _t := 0.0
 
 func _ready() -> void:
 	_track = Game.track_index
+	_class = Game.speed_class
+	if Game.last_result.get("track", "") == "Championship":
+		_track = TrackDefs.ALL.size()
 	var bg := ColorRect.new()
 	bg.color = Color(0.03, 0.02, 0.05)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -34,7 +38,7 @@ func _ready() -> void:
 	_build_table()
 
 	var r: Dictionary = Game.last_result
-	_entering = not r.is_empty() and int(r.score.total) > 0 and Highscores.qualifies(r.track, int(r.score.total))
+	_entering = not r.is_empty() and int(r.score.total) > 0 and Highscores.qualifies(Game.table_key(r.track), int(r.score.total))
 	_entry_box.visible = _entering
 	_table_box.visible = not _entering
 	if not _entering and not r.is_empty():
@@ -52,7 +56,7 @@ func _build_entry() -> void:
 	var r: Dictionary = Game.last_result
 	_entry_box.add_child(UiTheme.glow_label("NEW HIGH SCORE", 64, UiTheme.PINK))
 	if not r.is_empty():
-		_entry_box.add_child(UiTheme.label("%s  ·  %s  ·  %d points" % [r.track, UiTheme.ordinal(r.position), r.score.total], 26))
+		_entry_box.add_child(UiTheme.label("%s  ·  %s class  ·  %s  ·  %d points" % [r.track, Game.class_name_text(), UiTheme.ordinal(r.position), r.score.total], 26))
 	_entry_box.add_child(UiTheme.label("enter your initials", 20, UiTheme.DIM))
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -74,19 +78,20 @@ func _build_table() -> void:
 	_grid.add_theme_constant_override("h_separation", 36)
 	_grid.add_theme_constant_override("v_separation", 6)
 	_table_box.add_child(_grid)
-	_table_box.add_child(UiTheme.label("Left/Right / L1 R1 circuit      %s / Circle title" % UiTheme.accept_hint(), 18, UiTheme.DIM))
+	_table_box.add_child(UiTheme.label("Left/Right / L1 R1 circuit      Up/Down class      %s / Circle title" % UiTheme.accept_hint(), 18, UiTheme.DIM))
 	_refresh_table()
 
 
 func _refresh_table() -> void:
-	var def := TrackDefs.ALL[_track]
-	_table_title.text = "HIGH SCORES  ·  " + def.name
-	_table_title.add_theme_color_override("font_color", def.neon)
+	var championship := _track >= TrackDefs.ALL.size()
+	var table_name: String = "Championship" if championship else TrackDefs.ALL[_track].name
+	_table_title.text = "HIGH SCORES  ·  %s  ·  %s" % [table_name, Game.CLASSES[_class].name]
+	_table_title.add_theme_color_override("font_color", HudCanvas.AMBER if championship else TrackDefs.ALL[_track].neon)
 	for c in _grid.get_children():
 		c.queue_free()
 	for h in ["#", "NAME", "SCORE", "TIME", "BEST LAP"]:
 		_grid.add_child(UiTheme.label(h, 18, UiTheme.DIM))
-	var rows: Array = Highscores.top(def.name)
+	var rows: Array = Highscores.top(Game.table_key(table_name, _class))
 	for i in Highscores.MAX_ENTRIES:
 		var col := Color.WHITE
 		if i == _highlight:
@@ -108,13 +113,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		_entry_input(event)
 	else:
 		if event.is_action("ui_left") or event.is_action("airbrake_left"):
-			_track = posmod(_track - 1, TrackDefs.ALL.size())
+			_track = posmod(_track - 1, TrackDefs.ALL.size() + 1)
 			_highlight = -1
 			_refresh_table()
+			Sfx.play("ui_move")
 		elif event.is_action("ui_right") or event.is_action("airbrake_right"):
-			_track = posmod(_track + 1, TrackDefs.ALL.size())
+			_track = posmod(_track + 1, TrackDefs.ALL.size() + 1)
 			_highlight = -1
 			_refresh_table()
+			Sfx.play("ui_move")
+		elif event.is_action("ui_up") or event.is_action("ui_down"):
+			_class = posmod(_class + (-1 if event.is_action("ui_up") else 1), Game.CLASSES.size())
+			_highlight = -1
+			_refresh_table()
+			Sfx.play("ui_move")
 		elif event.is_action("ui_accept") or event.is_action("ui_cancel") or event.is_action("pause"):
 			Game.to_title()
 
@@ -159,7 +171,7 @@ func _submit() -> void:
 	var name := ""
 	for i in 3:
 		name += LETTERS[_initials[i]]
-	_highlight = Highscores.add(r.track, {
+	_highlight = Highscores.add(Game.table_key(r.track), {
 		"name": name.strip_edges(),
 		"score": int(r.score.total),
 		"time": r.time,

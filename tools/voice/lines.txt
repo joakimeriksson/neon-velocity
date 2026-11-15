@@ -1,0 +1,26 @@
+# <file name>|<what the announcer says>|<style>   (scripts/voice.gd plays audio/voice/<file name>.ogg)
+# Styles are described in tools/voice/spark_voice.py (STYLES).
+3|Three.|count
+2|Two.|count
+1|One.|count
+go|Go!|go
+final_lap|Final lap!|hype
+rocket|Rocket.|call
+missile|Missile.|call
+mines|Mines.|call
+shield|Shield.|call
+turbo|Turbo.|call
+incoming|Missile incoming!|alert
+eliminated|Contender eliminated.|alert
+boost_start|Boost start!|hype
+new_record|New lap record!|hype
+energy_low|Energy critical.|alert
+place_1|First place!|hype
+place_2|Second place.|call
+place_3|Third place.|call
+place_4|Fourth place.|call
+place_5|Fifth place.|call
+circuit_0|Neon Descent.|title
+circuit_1|Undertow.|title
+circuit_2|Chrome Riot.|title
+circuit_3|Solar Wake.|title

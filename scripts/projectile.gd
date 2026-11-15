@@ -55,6 +55,13 @@ func _ready() -> void:
 		light.shadow_enabled = false
 		add_child(light)
 		add_child(_make_trail(color))
+		var ribbon := RibbonTrail.new()
+		ribbon.source = self
+		ribbon.color = color
+		ribbon.width = 0.12
+		ribbon.seconds = 0.5
+		ribbon.level = 1.0
+		add_child(ribbon)
 	_mesh.material_override = mat
 	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mesh)
@@ -82,7 +89,7 @@ func _physics_process(delta: float) -> void:
 		_place()
 
 	for ship in race.ships:
-		if ship.is_eliminated or ship.weapon_immune():
+		if ship.is_eliminated or ship.finished or ship.weapon_immune():
 			continue
 		# Your own rocket can't hit you; your own mines can, once they've armed.
 		if ship == owner_ship and (kind != Kind.MINE or _age < 1.5):

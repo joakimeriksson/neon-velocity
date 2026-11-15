@@ -73,6 +73,9 @@ func _compose() -> String:
 	out.append(_title("Music"))
 	out.append("Generated with ACE-Step 1.5 XL, (c) 2026 ACEStep, MIT licence.")
 
+	out.append(_title("Announcer"))
+	out.append("Spoken by VoxCPM2, (c) OpenBMB, Apache-2.0 licence, in a voice designed from a text description.")
+
 	out.append(_title("Licence texts"))
 	var texts := Engine.get_license_info()
 	var ids := used.keys()

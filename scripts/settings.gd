@@ -13,13 +13,16 @@ const DEFAULTS := {
 	"audio/music": 0.8,
 	"audio/effects": 0.8,
 	"audio/engines": 0.8,
+	"audio/voice": 0.8,
 	"video/fullscreen": false,
 	"video/quality": -1,        # -1 = leave the project's render scale alone
+	"video/speed_fx": true,
 	"game/rumble": true,
 	"game/camera_shake": true,
 	"game/show_controls": true,
+	"game/speed_class": 1,
 }
-const BUSES := {"audio/master": "Master", "audio/music": "Music", "audio/effects": "SFX", "audio/engines": "Engines"}
+const BUSES := {"audio/master": "Master", "audio/music": "Music", "audio/effects": "SFX", "audio/engines": "Engines", "audio/voice": "Voice"}
 
 var _values := {}
 var _dirty := false
@@ -27,7 +30,8 @@ var _dirty := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_ensure_engines_bus()
+	_ensure_bus("Engines")
+	_ensure_bus("Voice")
 	# Five engines, explosions and music can add up past full scale; catch it before it clips.
 	var limiter := AudioEffectHardLimiter.new()
 	limiter.ceiling_db = -1.0
@@ -84,13 +88,13 @@ func current_quality() -> int:
 	return best
 
 
-## Engines get their own fader, separate from the other effects.
-func _ensure_engines_bus() -> void:
-	if AudioServer.get_bus_index("Engines") >= 0:
+## Engines and the announcer get their own faders, separate from the other effects.
+func _ensure_bus(bus_name: String) -> void:
+	if AudioServer.get_bus_index(bus_name) >= 0:
 		return
 	AudioServer.add_bus()
 	var index := AudioServer.bus_count - 1
-	AudioServer.set_bus_name(index, "Engines")
+	AudioServer.set_bus_name(index, bus_name)
 	AudioServer.set_bus_send(index, "Master")
 
 

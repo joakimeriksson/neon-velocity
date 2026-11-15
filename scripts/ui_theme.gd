@@ -33,6 +33,9 @@ static func button(text: String, size := 26, color := Color.WHITE) -> Button:
 	b.add_theme_color_override("font_focus_color", Color.WHITE)
 	b.add_theme_color_override("font_pressed_color", Color.WHITE)
 	b.focus_mode = Control.FOCUS_ALL
+	# Every menu button ticks when focus lands on it and chimes when pressed.
+	b.focus_entered.connect(func(): Sfx.play("ui_move"))
+	b.pressed.connect(func(): Sfx.play("ui_accept"))
 	return b
 
 

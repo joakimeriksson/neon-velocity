@@ -72,6 +72,7 @@ func build(track: TrackBuilder, camera: Node3D, env := {}, setting := {}, landsc
 		_add_ground()
 		_add_street_lights()
 		_add_searchlights()
+		_add_traffic()
 	_add_rain(camera)
 
 
@@ -242,6 +243,7 @@ func _add_building_mesh() -> void:
 	mat.set_shader_parameter("body_brightness", _env.get("facade", 1.0))
 	mat.set_shader_parameter("glass", _env.get("glass", Color(0.015, 0.015, 0.02)))
 	mat.set_shader_parameter("glass_roughness", _env.get("glass_roughness", 0.8))
+	mat.set_shader_parameter("dressing", clampf(_env.get("window_lit", 1.0) * 1.6, 0.0, 1.0))
 
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
@@ -406,3 +408,53 @@ func _add_rain(camera: Node3D) -> void:
 	rain.visibility_aabb = AABB(Vector3(-80, -80, -80), Vector3(160, 160, 160))
 	rain.position = Vector3(0, 10, -14)
 	camera.add_child(rain)
+
+
+## Air traffic: lanes of lights streaming between the towers, above the circuit and down in
+## the depths below it. One MultiMesh; the shader moves each craft along its lane.
+func _add_traffic() -> void:
+	var top := -INF
+	var centre := Vector3.ZERO
+	for f in _track.frames:
+		top = maxf(top, f.origin.y)
+		centre += f.origin
+	centre /= _track.frames.size()
+	var lanes := 14
+	var per_lane := 34
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	var craft := BoxMesh.new()
+	craft.size = Vector3(0.9, 0.45, 2.6)
+	mm.mesh = craft
+	mm.instance_count = lanes * per_lane
+	var lit: float = _env.get("window_lit", 1.0)
+	for lane in lanes:
+		var yaw := _rng.randf() * TAU
+		var dir := Vector3(sin(yaw), 0, cos(yaw))
+		var side := dir.cross(Vector3.UP)
+		# Two lanes in three fly over the circuit; the rest thread the streets underneath.
+		var y: float = top + _rng.randf_range(28.0, 150.0) if lane % 3 != 0 else _track.lowest_y() - _rng.randf_range(12.0, maxf(ground_drop - 6.0, 14.0))
+		var origin := Vector3(centre.x, y, centre.z) + side * _rng.randf_range(-max_distance, max_distance)
+		var length := max_distance * 3.2
+		var speed := _rng.randf_range(38.0, 70.0)
+		# Tail lights going away, head lights coming: here simply a colour per lane.
+		var color: Color = [Color(1.0, 0.86, 0.6), Color(1.0, 0.18, 0.12), Color(0.55, 0.85, 1.0)][lane % 3]
+		for k in per_lane:
+			var along := (k + _rng.randf() * 0.7) / per_lane
+			var wobble := side * _rng.randf_range(-5.0, 5.0) + Vector3.UP * _rng.randf_range(-2.5, 2.5)
+			var i := lane * per_lane + k
+			mm.set_instance_transform(i, Transform3D(Basis.looking_at(dir, Vector3.UP), origin + wobble))
+			mm.set_instance_color(i, color)
+			mm.set_instance_custom_data(i, Color(along, speed, length, 0.0))
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/traffic.gdshader")
+	mat.set_shader_parameter("energy", lerpf(1.0, 4.5, clampf(lit, 0.0, 1.0)))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = mat
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# The shader moves the craft far from where the instances sit.
+	mmi.custom_aabb = AABB(Vector3(-4000, -1000, -4000), Vector3(8000, 2000, 8000))
+	add_child(mmi)

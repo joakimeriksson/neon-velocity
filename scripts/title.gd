@@ -16,6 +16,7 @@ var _overlay_open := false
 var _flicker_t := 0.0
 var _buttons: Array[Button] = []
 var _t := 0.0
+var _class_blurb: Label
 
 
 func _ready() -> void:
@@ -56,8 +57,20 @@ func _ready() -> void:
 	row.add_theme_constant_override("separation", 36)
 	_select_box.add_child(row)
 	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 14)
+	list.add_theme_constant_override("separation", 12)
 	row.add_child(list)
+	# Speed class first: it applies to whatever is started below it.
+	var class_names := []
+	for c in Game.CLASSES:
+		class_names.append(c.name)
+	var class_row := SettingRow.choice("Speed class", class_names, Game.speed_class, UiTheme.PINK)
+	class_row.value_changed.connect(func(v):
+		Game.set_speed_class(int(v))
+		_class_blurb.text = Game.CLASSES[Game.speed_class].blurb
+		Sfx.play("ui_move"))
+	list.add_child(class_row)
+	_class_blurb = UiTheme.label(Game.CLASSES[Game.speed_class].blurb, 20, UiTheme.DIM, HORIZONTAL_ALIGNMENT_LEFT)
+	list.add_child(_class_blurb)
 	var board := UiTheme.panel()
 	row.add_child(board)
 	_preview = TrackPreview.new()
@@ -66,12 +79,18 @@ func _ready() -> void:
 	for i in TrackDefs.ALL.size():
 		var def := TrackDefs.ALL[i]
 		var b := UiTheme.button("%d   %s\n%s" % [i + 1, def.name, def.blurb], 26, def.neon)
-		b.custom_minimum_size = Vector2(760, 92)
+		b.custom_minimum_size = Vector2(860, 84)
 		b.pressed.connect(Game.start_race.bind(i))
 		b.focus_entered.connect(_preview.show_circuit.bind(def))
 		b.mouse_entered.connect(b.grab_focus)
 		list.add_child(b)
 		_buttons.append(b)
+	var champ := UiTheme.button("Championship\nAll %d circuits in order, points for every finish." % TrackDefs.ALL.size(), 26, HudCanvas.AMBER)
+	champ.custom_minimum_size = Vector2(860, 84)
+	champ.pressed.connect(Game.start_championship)
+	champ.mouse_entered.connect(champ.grab_focus)
+	list.add_child(champ)
+	_buttons.append(champ)
 	# High scores, settings and credits share the last row.
 	var extras := HBoxContainer.new()
 	extras.add_theme_constant_override("separation", 14)
@@ -83,16 +102,17 @@ func _ready() -> void:
 	var credits := _small_button(extras, "Credits")
 	credits.pressed.connect(func(): _open_overlay(CreditsMenu.new(), credits))
 	# Down from the last circuit goes to the first of the three, and up from any of them goes back.
-	var last_circuit: Button = _buttons[TrackDefs.ALL.size() - 1]
+	var last_circuit: Button = champ
 	last_circuit.focus_neighbor_bottom = last_circuit.get_path_to(hs)
 	for b in [hs, settings, credits]:
 		b.focus_neighbor_top = b.get_path_to(last_circuit)
 	_select_box.add_child(_spacer(10))
-	_select_box.add_child(UiTheme.label("Up/Down / D-pad select     %s start     Circle / Esc back" % UiTheme.accept_hint(), 18, UiTheme.DIM))
+	_select_box.add_child(UiTheme.label("Up/Down / D-pad select     Left/Right class     %s start     Circle / Esc back" % UiTheme.accept_hint(), 18, UiTheme.DIM))
 
 	Input.joy_connection_changed.connect(func(_d, _c): _update_pad())
 	_update_pad()
-	_show_page(Page.TITLE)
+	# Dev: AG_SELECT=1 opens on the circuit select page (for screenshots).
+	_show_page(Page.SELECT if OS.has_environment("AG_SELECT") else Page.TITLE)
 
 
 func _process(delta: float) -> void:
@@ -112,7 +132,7 @@ func _process(delta: float) -> void:
 
 func _small_button(row: HBoxContainer, text: String) -> Button:
 	var b := UiTheme.button(text, 22, UiTheme.DIM)
-	b.custom_minimum_size = Vector2(244, 50)
+	b.custom_minimum_size = Vector2(277, 50)
 	b.mouse_entered.connect(b.grab_focus)
 	row.add_child(b)
 	_buttons.append(b)
@@ -158,6 +178,7 @@ func _show_page(p: Page) -> void:
 	_select_box.visible = p == Page.SELECT
 	if p == Page.SELECT:
 		_buttons[0].grab_focus()
+		Sfx.play("ui_accept")
 
 
 func _update_pad() -> void:

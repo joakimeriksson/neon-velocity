@@ -31,7 +31,10 @@ func show_results(race: Node) -> void:
 		inner.add_child(UiTheme.glow_label("ELIMINATED", 48, Color(1.0, 0.35, 0.3)))
 	else:
 		inner.add_child(UiTheme.glow_label("RACE COMPLETE", 48, UiTheme.NEON))
-	inner.add_child(UiTheme.label("%s  ·  %s" % [r.track, UiTheme.ordinal(r.position)], 30, UiTheme.PINK))
+	var where: String = r.track
+	if Game.mode == "championship":
+		where = "Round %d of %d  ·  %s" % [Game.champ_round + 1, Game.champ_rounds(), r.track]
+	inner.add_child(UiTheme.label("%s  ·  %s  ·  %s class" % [where, UiTheme.ordinal(r.position), Game.class_name_text()], 30, UiTheme.PINK))
 	inner.add_child(UiTheme.label("Time %s     Best lap %s" % [UiTheme.fmt_time(r.time), UiTheme.fmt_time(r.best_lap)], 22))
 
 	var s: Dictionary = r.score
@@ -46,13 +49,16 @@ func show_results(race: Node) -> void:
 	inner.add_child(UiTheme.glow_label("SCORE  %d" % s.total, 44, Color.WHITE))
 
 	_table = GridContainer.new()
-	_table.columns = 4
+	_table.columns = 6 if Game.mode == "championship" else 4
 	_table.add_theme_constant_override("h_separation", 28)
 	_table.add_theme_constant_override("v_separation", 4)
 	inner.add_child(_table)
 	refresh()
 
-	_hint = UiTheme.label("%s continue" % UiTheme.accept_hint(), 20, UiTheme.DIM)
+	var next := "continue"
+	if Game.mode == "championship":
+		next = "final standings" if Game.champ_is_last_round() else "next round: %s" % TrackDefs.ALL[Game.champ_round + 1].name
+	_hint = UiTheme.label("%s %s" % [UiTheme.accept_hint(), next], 20, UiTheme.DIM)
 	inner.add_child(_hint)
 	# Swallow the button press that may still be held from racing.
 	get_tree().create_timer(0.8).timeout.connect(func(): _armed = true)
@@ -78,9 +84,15 @@ func refresh() -> void:
 			t = "racing..."
 		_table.add_child(UiTheme.label(t, 20, col, HORIZONTAL_ALIGNMENT_RIGHT))
 		_table.add_child(UiTheme.label("lap " + UiTheme.fmt_time(ship.best_lap) if ship.best_lap < INF else "", 20, col, HORIZONTAL_ALIGNMENT_LEFT))
+		if Game.mode == "championship":
+			_table.add_child(UiTheme.label("+%d" % Game.champ_round_points(ship.ship_name), 20, HudCanvas.AMBER, HORIZONTAL_ALIGNMENT_RIGHT))
+			_table.add_child(UiTheme.label("%d pts" % int(Game.champ_points.get(ship.ship_name, 0)), 20, col, HORIZONTAL_ALIGNMENT_RIGHT))
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _armed and event.is_action_pressed("ui_accept"):
 		get_viewport().set_input_as_handled()
-		Game.to_highscores()
+		if Game.mode == "championship":
+			Game.champ_continue()
+		else:
+			Game.to_highscores()

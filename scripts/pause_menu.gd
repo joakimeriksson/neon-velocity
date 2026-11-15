@@ -27,7 +27,7 @@ func _ready() -> void:
 	add_child(_box)
 	_box.add_child(UiTheme.glow_label("PAUSED", 64, UiTheme.NEON))
 	_resume = _add("Resume", func(): set_paused(false))
-	_add("Restart race", func(): Game.start_race(Game.track_index))
+	_add("Restart race", Game.restart_race)
 	var settings := _add("Settings", func(): pass)
 	settings.pressed.connect(func():
 		_box.visible = false

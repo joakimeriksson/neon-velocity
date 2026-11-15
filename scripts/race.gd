@@ -5,7 +5,11 @@ extends Node3D
 ## Also the combat referee: hands out pickups, launches weapons, recharges ships in the pit
 ## lane and handles eliminations.
 
-enum State { COUNTDOWN, RACING, FINISHED }
+enum State { COUNTDOWN, RACING, FINISHED, INTRO }
+
+const INTRO_SECONDS := 4.0
+## Thrust has to come on within this long before the lights go green for a boost start.
+const START_WINDOW := 0.4
 
 @export var ship_scene: PackedScene
 @export var laps := 3
@@ -42,10 +46,19 @@ var _reverbs := {}   # bus name -> AudioEffectReverb, for the tunnels
 var landscape: Landscape   ## terrain and zones, on circuits that have a "landscape"
 var _base_env := {}
 var _log := OS.has_environment("AG_COMBAT_LOG")   ## print pickups, shots, hits and pit stops
+var _post: PostFx
+var _class_scale := 1.0
+var _intro_time := 0.0
+var _throttle_at := INF      ## countdown value when the player last pressed thrust
+var _autopilot := false
+var _final_lap_called := false
+var _ambience: Ambience
 
 
 func _ready() -> void:
 	var def := TrackDefs.ALL[Game.track_index]
+	if OS.has_environment("AG_LAPS"):
+		laps = maxi(int(OS.get_environment("AG_LAPS")), 1)   # dev: short races
 	_apply_environment(def.get("env", TrackDefs.NIGHT_RAIN))
 	track.load_def(def)
 	if def.has("landscape"):
@@ -71,7 +84,8 @@ func _ready() -> void:
 		driver.setup(track, 1.0 - 0.04 * i, (-1.0 if i % 2 == 0 else 1.0) * lane_offset)
 	player = _spawn_ship(grid[ai_count], "You", Color(0.9, 0.2, 0.3), "player")
 	player.is_player = true
-	if OS.has_environment("AG_AUTOPILOT") or Game.attract:
+	_autopilot = OS.has_environment("AG_AUTOPILOT") or Game.attract
+	if _autopilot:
 		var driver := AIDriver.new()
 		player.add_child(driver)
 		driver.setup(track, 1.0, 0.0)
@@ -93,7 +107,23 @@ func _ready() -> void:
 			hud.flash("Hit by %s's %s" % [by_name, weapon.to_lower()], HudCanvas.RED))
 		player.item_changed.connect(func():
 			if player.item != Items.NONE:
-				Sfx.play("pickup"))
+				Sfx.play("pickup")
+				Voice.say(Items.NAMES[player.item].to_lower())
+				Fx.ring(self, player.global_transform.translated_local(Vector3(0, 0.3, 0)).rotated_local(Vector3.RIGHT, PI / 2.0), Items.COLORS[player.item], 7.0, 0.35))
+		player.side_shifted.connect(func(_direction: float):
+			Sfx.play("side_shift", 1.0, 0.0, 0.7)
+			_rumble(0.5, 0.0, 0.12))
+
+	# The speed class rescales every ship and every AI's judgement the same way.
+	_class_scale = Game.class_scale()
+	for ship in ships:
+		ship.apply_speed_class(_class_scale)
+		for child in ship.get_children():
+			if child is AIDriver:
+				child.apply_speed_class(_class_scale)
+	_post = PostFx.new()
+	add_child(_post)
+	_post.ship = player
 
 	# Dev: AG_ENERGY=40 starts every ship at that energy, to exercise pit stops and warnings.
 	if OS.has_environment("AG_ENERGY"):
@@ -101,9 +131,9 @@ func _ready() -> void:
 			ship.energy = float(OS.get_environment("AG_ENERGY"))
 
 	if not Game.attract:
-		var ambience := Ambience.new()
-		add_child(ambience)
-		ambience.setup(self, def.get("env", TrackDefs.NIGHT_RAIN))
+		_ambience = Ambience.new()
+		add_child(_ambience)
+		_ambience.setup(self, def.get("env", TrackDefs.NIGHT_RAIN))
 
 	camera.target = player
 	camera._snap()
@@ -118,12 +148,23 @@ func _ready() -> void:
 		hud.visible = false
 		laps = 999
 		state = State.RACING
+		track.set_start_lights(4)
 		for ship in ships:
 			ship.controls_enabled = true
 			ship.invulnerable = true   # weapons fly on the title screen, but nobody is knocked out
 	else:
 		_pause = PauseMenu.new()
 		add_child(_pause)
+		# A sweep over the grid first, unless nobody is watching (AG_INTRO=1 forces it).
+		var watched := DisplayServer.get_name() != "headless" and not OS.has_environment("AG_AUTOPILOT")
+		if watched or OS.has_environment("AG_INTRO"):
+			state = State.INTRO
+			_intro_time = INTRO_SECONDS
+			camera.play_intro(INTRO_SECONDS)
+			hud.intro_title = def.name
+			hud.intro_sub = "%s class   ·   %d lap%s%s" % [Game.class_name_text(), laps, "" if laps == 1 else "s",
+				"   ·   round %d of %d" % [Game.champ_round + 1, Game.champ_rounds()] if Game.mode == "championship" else ""]
+			Voice.say("circuit_%d" % Game.track_index, 0.6)
 
 
 ## models/ships/<name>.glb, falling back to ai.glb for AI ships, else the placeholder hull.
@@ -137,10 +178,19 @@ static func _find_model(name: String) -> String:
 ## Time of day: sky, sun, fog from the circuit's env preset.
 func _apply_environment(env: Dictionary) -> void:
 	var e: Environment = $WorldEnvironment.environment
-	var sky_mat: ProceduralSkyMaterial = e.sky.sky_material
-	sky_mat.sky_top_color = env.sky_top
-	sky_mat.sky_horizon_color = env.sky_horizon
-	sky_mat.ground_horizon_color = env.sky_horizon
+	var sky_mat := ShaderMaterial.new()
+	sky_mat.shader = preload("res://shaders/sky.gdshader")
+	sky_mat.set_shader_parameter("top_color", env.sky_top)
+	sky_mat.set_shader_parameter("horizon_color", env.sky_horizon)
+	sky_mat.set_shader_parameter("ground_color", Color(env.sky_horizon).darkened(0.75))
+	sky_mat.set_shader_parameter("curve", env.get("sky_curve", 0.35))
+	sky_mat.set_shader_parameter("cloud_cover", env.get("clouds", 0.4))
+	sky_mat.set_shader_parameter("cloud_lit", env.get("cloud_lit", Color(env.sky_horizon).lightened(0.25)))
+	sky_mat.set_shader_parameter("cloud_dark", env.get("cloud_dark", Color(env.sky_top).darkened(0.3)))
+	sky_mat.set_shader_parameter("stars", env.get("stars", 0.0))
+	sky_mat.set_shader_parameter("disc_size", env.get("disc_size", 0.03))
+	sky_mat.set_shader_parameter("disc_energy", env.get("disc_energy", 1.0))
+	e.sky.sky_material = sky_mat
 	e.ambient_light_energy = env.ambient
 	e.fog_light_color = env.fog_color
 	e.fog_density = env.fog_density
@@ -196,15 +246,16 @@ func _on_item_used(item: int, ship: Ship) -> void:
 		print("%6.1f  %-8s uses %s" % [race_time, ship.ship_name, Items.NAMES[item]])
 	match item:
 		Items.ROCKET:
-			_launch(Projectile.Kind.ROCKET, ship, s + 2.5, ship.track_lateral, maxf(ship.speed + 75.0, 125.0))
+			_launch(Projectile.Kind.ROCKET, ship, s + 2.5, ship.track_lateral, maxf(ship.speed + 75.0 * _class_scale, 125.0 * _class_scale))
 			_play_for(ship, "rocket_fire")
 		Items.MISSILE:
-			var p := _launch(Projectile.Kind.MISSILE, ship, s + 2.5, ship.track_lateral, maxf(ship.speed + 50.0, 115.0))
+			var p := _launch(Projectile.Kind.MISSILE, ship, s + 2.5, ship.track_lateral, maxf(ship.speed + 50.0 * _class_scale, 115.0 * _class_scale))
 			p.target = _ship_ahead_of(ship, 320.0)
 			_play_for(ship, "missile_fire")
 			if p.target == player and not Game.attract:
 				Sfx.play("lock_on")
 				hud.flash("Missile incoming", HudCanvas.RED)
+				Voice.say("incoming")
 		Items.MINE:
 			for k in 3:
 				_launch(Projectile.Kind.MINE, ship, s - 3.0 - k * 3.5, ship.track_lateral + randf_range(-2.5, 2.5), 0.0)
@@ -295,7 +346,7 @@ func _check_off_track(ship: Ship, delta: float) -> void:
 			print("%6.1f  %-8s rescued: %s, lateral %.1f m, %.1f m below the road line, at %.0f%% of lap, speed %.0f" % [race_time, ship.ship_name, "over the wall" if beyond_wall else "under the road", rel.dot(f.basis.x), -rel.dot(f.basis.y), ship.progress * 100.0, ship.speed])
 		var back := track.frames[track.safe_frame(ship.frame_hint + 2)]
 		ship.respawn(Transform3D(back.basis, back.origin + back.basis.y * 1.5))
-		if ship == player and not Game.attract:
+		if ship == player and not Game.attract and not ship.finished:
 			hud.flash("Off the track. Rescued", HudCanvas.AMBER)
 			Sfx.play("rescue")
 
@@ -353,6 +404,7 @@ func report_hit(attacker: Ship, victim: Ship, weapon: String, landed: bool) -> v
 			hud.flash("%s blocked by %s's shield" % [weapon.capitalize(), victim.ship_name], Items.COLORS[Items.SHIELD])
 		elif victim.is_eliminated:
 			hud.flash("%s eliminated" % victim.ship_name, HudCanvas.AMBER)
+			Voice.say("eliminated")
 		else:
 			hud.flash("%s hit %s" % [weapon.capitalize(), victim.ship_name], HudCanvas.GREEN)
 
@@ -378,6 +430,8 @@ func _on_eliminated(ship: Ship) -> void:
 		"eliminated": true,
 		"score": {"position": 0, "time": 0, "lap": 0, "combat": 0, "total": 0},
 	}
+	_record_championship()
+	Voice.say("eliminated", 0.4)
 	hud.center_text = "Eliminated"
 	get_tree().create_timer(2.2).timeout.connect(_show_results)
 
@@ -387,27 +441,40 @@ func _process(delta: float) -> void:
 		race_time += delta
 		for ship in ships:
 			_update_ship(ship, delta)
+		_update_drafts()
 		return
 	if Input.is_action_just_pressed("pause") and state != State.FINISHED and not _pause.visible and Engine.get_process_frames() != _pause.resumed_frame:
 		_pause.set_paused(true)
 		return
 
 	match state:
+		State.INTRO:
+			_intro_time -= delta
+			if _intro_time <= 0.0 or Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("accelerate"):
+				camera.end_intro()
+				hud.intro_title = ""
+				state = State.COUNTDOWN
 		State.COUNTDOWN:
 			_countdown -= delta
+			if Input.is_action_just_pressed("accelerate"):
+				_throttle_at = _countdown
 			var text := str(ceili(_countdown)) if _countdown > 0.0 else "Go"
 			if text != hud.center_text:
 				Sfx.play("countdown_go" if _countdown <= 0.0 else "countdown_tick")
+				Voice.say("go" if _countdown <= 0.0 else str(ceili(_countdown)))
+				track.set_start_lights(4 if _countdown <= 0.0 else 4 - ceili(_countdown))
 			hud.center_text = text
 			if _countdown <= 0.0:
 				state = State.RACING
 				for ship in ships:
 					ship.controls_enabled = true
+				_start_boosts()
 				get_tree().create_timer(1.0).timeout.connect(func(): if state == State.RACING: hud.center_text = "")
 		State.RACING, State.FINISHED:
 			race_time += delta
 			for ship in ships:
 				_update_ship(ship, delta)
+			_update_drafts()
 			if state == State.FINISHED:
 				_update_results()
 
@@ -429,9 +496,11 @@ func _process(delta: float) -> void:
 func _update_ship(ship: Ship, delta: float) -> void:
 	if ship.global_position.y < track.lowest_y() - 40.0:
 		ship.respawn(track.get_respawn_transform(ship.global_position))
+	# Finished ships keep flying, so they can still need rescuing.
+	if not ship.is_eliminated:
+		_check_off_track(ship, delta)
 	if ship.finished:
 		return
-	_check_off_track(ship, delta)
 	ship.lap_time += delta
 	var idx := track.get_nearest_frame_index(ship.global_position, ship.frame_hint)
 	ship.frame_hint = idx
@@ -457,6 +526,10 @@ func _update_ship(ship: Ship, delta: float) -> void:
 			_finish(ship)
 		elif ship == player and ship.lap > 1:
 			Sfx.play("lap")
+			if ship.lap == laps and not _final_lap_called:
+				_final_lap_called = true
+				hud.flash("Final lap", HudCanvas.MAGENTA)
+				Voice.say("final_lap", 0.5)
 	elif ship.progress < 0.1 and progress > 0.9:
 		ship.lap -= 1  # reversed back over the line
 	ship.progress = progress
@@ -465,14 +538,21 @@ func _update_ship(ship: Ship, delta: float) -> void:
 func _finish(ship: Ship) -> void:
 	ship.finished = true
 	ship.finish_time = race_time
-	ship.controls_enabled = false
+	ship.item = Items.NONE
 	_finish_order.append(ship)
+	# Finished ships keep circulating; the race goes on around them until the results.
 	if ship == player:
 		state = State.FINISHED
 		Sfx.play("finish")
 		_player_finish_time = race_time
+		_hand_to_autopilot()
+		camera.orbit()
+		if _ambience:
+			_ambience.cheer()
 		var position := _finish_order.size()
-		var def := TrackDefs.ALL[Game.track_index]
+		Voice.say("place_%d" % position, 0.9)
+		var def := TrackDefs.ALL[Game.track_index].duplicate()
+		def["class_scale"] = _class_scale
 		Game.last_result = {
 			"track": def.name,
 			"position": position,
@@ -480,8 +560,9 @@ func _finish(ship: Ship) -> void:
 			"best_lap": player.best_lap if player.best_lap < INF else 0.0,
 			"score": Game.score_for(def, position, race_time, player.best_lap, laps, player.hits_landed, player.kills),
 		}
+		_record_championship()
 		hud.center_text = "Finished %s" % _ordinal(position)
-		get_tree().create_timer(1.6).timeout.connect(_show_results)
+		get_tree().create_timer(2.6).timeout.connect(_show_results)
 
 
 func _show_results() -> void:
@@ -500,9 +581,9 @@ func _update_results() -> void:
 		if not ship.finished and race_time - _player_finish_time > 15.0 and not ship.get_meta("dnf", false):
 			ship.set_meta("dnf", true)
 			ship.finished = true
-			ship.controls_enabled = false
 			changed = true
 	if changed or Engine.get_process_frames() % 30 == 0:
+		_record_championship()
 		_results.refresh()
 
 
@@ -538,3 +619,60 @@ static func _ordinal(n: int) -> String:
 	if n % 100 not in [11, 12, 13]:
 		suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
 	return str(n) + suffix
+
+
+## The lights go green: anyone who came on the thrust at the right moment gets away with a boost.
+func _start_boosts() -> void:
+	for ship in ships:
+		var perfect := randf() < 0.3
+		if ship == player and not _autopilot:
+			perfect = Input.is_action_pressed("accelerate") and _throttle_at <= START_WINDOW
+		if perfect:
+			ship.boost(0.8)
+			if ship == player:
+				hud.flash("Boost start", HudCanvas.GREEN)
+				Voice.say("boost_start", 0.5)
+
+
+## Tucked in behind another ship, in its lane: the hole it punches in the air pulls this one along.
+func _update_drafts() -> void:
+	for ship in ships:
+		var best := 0.0
+		if not ship.finished and not ship.is_eliminated and ship.speed > ship.max_speed * 0.55:
+			for other in ships:
+				if other == ship or other.is_eliminated or other.finished:
+					continue
+				var d := track_distance(ship, other)
+				if d < 6.0 or d > 50.0:
+					continue
+				var side := absf(other.track_lateral - ship.track_lateral)
+				best = maxf(best, clampf(1.0 - (d - 12.0) / 38.0, 0.0, 1.0) * clampf(1.0 - (side - 2.0) / 2.0, 0.0, 1.0))
+		ship.draft_target = best
+
+
+## The race is run: the player's ship flies itself round while the results come up.
+func _hand_to_autopilot() -> void:
+	if _autopilot:
+		return
+	for child in player.get_children():
+		if child is PlayerDriver:
+			child.queue_free()
+	var driver := AIDriver.new()
+	player.add_child(driver)
+	driver.setup(track, 0.97, 0.0)
+	driver.apply_speed_class(_class_scale)
+
+
+## Championship points for the order as it stands; called again as late finishers settle.
+func _record_championship() -> void:
+	if Game.mode != "championship" or Game.last_result.is_empty():
+		return
+	var order: Array = ships.duplicate()
+	order.sort_custom(func(a, b): return _position_of(a) < _position_of(b))
+	var names := []
+	var out := []
+	for ship in order:
+		names.append(ship.ship_name)
+		if ship.is_eliminated:
+			out.append(ship.ship_name)
+	Game.champ_record(names, out, int(Game.last_result.score.total), float(Game.last_result.time))

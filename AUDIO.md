@@ -69,6 +69,29 @@ the leak found earlier the same day. Fixed at the source: finished one-shots ret
 and `get_length()` gives an upper bound. The game's polling workaround is gone; `Sfx._expire` remains as a
 safety net for an older library.
 
+### Announcer, menus and the crowd (2026-11-15)
+
+- `Voice` (autoload, `scripts/voice.gd`) says `audio/voice/<line>.ogg`: the countdown, the pickup's name,
+  "final lap", "new lap record", "missile incoming", "energy critical", "contender eliminated", the finishing
+  place, and the circuit's name over the grid sweep. One line at a time; only the newest waiting line is kept.
+  Its own `Voice` bus and settings slider; the Music bus gets an `AudioEffectAmplify` that dips 5 dB while a
+  line plays. The lines are optional.
+- The voice is VoxCPM2 on the Spark (`tools/voice/make_voice.sh`, text and style per line in
+  `tools/voice/lines.txt`): six voices designed from descriptions read an audition line, every game line is then
+  cloned from one audition take, three takes each, and on the Mac Whisper keeps the take that says the right
+  words. That take is trimmed, given a light public-address treatment (110 Hz high-pass, 3:1 compressor, 70/130 ms
+  slap) and set to -19 dB RMS over the speech with a -3 dBFS ceiling. `tools/voice/out/audition.html` plays all
+  the voices side by side; `make_voice.sh install <voice>` swaps the one in the game.
+- New events in `Sfx.GENERATORS`: `side_shift` (boost "Nudge"), `new_record` (finish "New record"), and the
+  menu sounds `ui_move`, `ui_accept`, `ui_back`, which every `UiTheme.button` plays on focus and press.
+- The crowd bed (`crowd` "Stadium") now runs on every circuit, swelling past the start line, and `Ambience.cheer()`
+  drives its `goal` and `excitement` inputs for a few seconds when the player takes the flag. In a slipstream the
+  wind bed gets stronger and gustier.
+- Paused, the music's low-pass closes to `Music.cutoff_paused` (420 Hz).
+
+None of these were level-matched with `tools/mix_probe.tscn` yet; the announcer in particular sits outside the
+measured mix.
+
 ### Music (2026-09-20)
 
 All nine were generated on the DGX Spark with ACE-Step 1.5 (checkpoint `acestep-v15-xl-sft`, language model

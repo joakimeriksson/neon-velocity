@@ -16,6 +16,15 @@ var position_text := ""      ## kept for callers that still set it; the canvas u
 ## "" or "RIGHT"/"LEFT" when the pit lane entry is coming up.
 var pit_ahead := ""
 
+## The card shown during the flyover before the countdown; "" once it is over.
+var intro_title := "":
+	set(value):
+		if value != intro_title:
+			intro_age = 0.0
+		intro_title = value
+var intro_sub := ""
+var intro_age := 0.0
+
 # --- Read by HudCanvas
 var time := 0.0
 var ignite := 0.0            ## 0..1, the tubes striking on at the start
@@ -37,11 +46,12 @@ var help_alpha := 1.0
 var help_lines := [
 	"W / S   thrust, brake",
 	"A / D   steer",
-	"Q / E   airbrakes",
+	"Q / E   airbrakes, double-tap to side-shift",
 	"Space or Square   fire",
 	"F or Circle   absorb for energy",
 	"R or Triangle   respawn",
 	"Esc or Options   pause",
+	"Thrust as the lights go green for a boost start",
 ]
 
 var _canvas: HudCanvas
@@ -50,6 +60,7 @@ var _sputter := 0.0
 var _beep_time := 0.0
 var _tick_time := 0.0
 var _last_item := Items.NONE
+var _was_low := false
 var _connected := false
 
 
@@ -64,6 +75,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	time += delta
 	center_age += delta
+	intro_age += delta
 	flash_time = maxf(flash_time - delta, 0.0)
 	glitch = maxf(glitch - delta * 3.0, 0.0)
 	split_age += delta
@@ -92,6 +104,9 @@ func _process(delta: float) -> void:
 func _update_status(delta: float) -> void:
 	var ratio := player.energy / player.max_energy
 	var low := ratio < 0.25 and not player.is_eliminated
+	if low and not _was_low and player.controls_enabled:
+		Voice.say("energy_low")
+	_was_low = low
 
 	# A dying tube: mostly on, with short sputters that get more frequent as energy falls.
 	_sputter -= delta
@@ -131,6 +146,9 @@ func _update_status(delta: float) -> void:
 		if _beep_time <= 0.0 and player.controls_enabled:
 			_beep_time = 0.9
 			Sfx.play("energy_low", 1.0, -4.0)
+	elif player.draft > 0.35 and player.controls_enabled:
+		status_text = "Slipstream"
+		status_color = HudCanvas.CYAN
 	else:
 		status_text = ""
 
@@ -151,6 +169,9 @@ func lap_completed(lap_time: float, previous_best: float) -> void:
 	else:
 		var diff := lap_time - previous_best
 		split_faster = diff < 0.0
+		if split_faster:
+			Sfx.play("new_record", 1.0, -2.0)
+			Voice.say("new_record", 0.7)
 		split_text = "%s%.3f" % ["-" if split_faster else "+", absf(diff)]
 
 

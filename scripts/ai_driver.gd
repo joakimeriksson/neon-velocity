@@ -19,6 +19,7 @@ extends Node
 var track: TrackBuilder
 @onready var ship: Ship = get_parent()
 
+var _horizon := 2.2   ## seconds of road ahead that the braking looks at
 var _held := 0.0      ## seconds the current item has been in the slot
 var _patience := 2.0  ## how long to look for a good shot before just using it
 
@@ -29,6 +30,14 @@ func setup(p_track: TrackBuilder, p_skill: float, p_lane: float) -> void:
 	lane = p_lane
 	ship.max_speed *= skill
 	ship.thrust *= skill
+
+
+## See Ship.apply_speed_class: the same lines and braking points, reached sooner.
+func apply_speed_class(k: float) -> void:
+	braking *= k * k
+	corner_grip *= k
+	speed_look_ahead /= k
+	_horizon /= k
 
 
 func _physics_process(delta: float) -> void:
@@ -48,7 +57,7 @@ func _physics_process(delta: float) -> void:
 	# Brake for what's coming: the fastest speed now that still lets the ship slow to each
 	# upcoming corner's speed by the time it gets there.
 	var allowed := INF
-	var reach := int(ship.speed * 2.2 / track.step) + 4
+	var reach := int(ship.speed * _horizon / track.step) + 4
 	for k in range(0, reach, 2):
 		var corner_speed := corner_grip * skill * sqrt(track.radius[(i + k) % n])
 		allowed = minf(allowed, sqrt(corner_speed * corner_speed + 2.0 * braking * k * track.step))
@@ -70,7 +79,7 @@ func _lane_at(fraction: float) -> float:
 
 
 func _use_items(delta: float) -> void:
-	if ship.item == Items.NONE:
+	if ship.item == Items.NONE or ship.finished:
 		_held = 0.0
 		return
 	if _held == 0.0:

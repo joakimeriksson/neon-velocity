@@ -32,6 +32,9 @@ func _draw() -> void:
 	if hud == null or hud.player == null:
 		_draw_center()
 		return
+	if hud.intro_title != "":
+		_draw_intro()
+		return
 	_base = Transform2D(0.0, Vector2(randf_range(-7, 7), randf_range(-4, 4)) * hud.glitch)
 	draw_set_transform_matrix(_base)
 	_draw_vignette()
@@ -43,6 +46,22 @@ func _draw() -> void:
 	_draw_messages()
 	_draw_help()
 	_draw_center()
+
+
+## The circuit's name card over the flyover: the name strikes on like a sign, with a rule
+## and the class and lap count under it.
+func _draw_intro() -> void:
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	var cx := size.x * 0.5
+	var y := size.y * 0.74
+	var level: float = 1.0 if hud.intro_age > 0.5 else (1.0 if randf() < hud.intro_age * 2.0 else 0.2)
+	var title: String = hud.intro_title.to_upper()
+	var w := _semi.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 120).x
+	_backing_board(Rect2(cx - w * 0.5 - 70.0, y - 118.0, w + 140.0, 214.0))
+	_neon_text(_semi, Vector2(cx, y), title, 120, CYAN, HORIZONTAL_ALIGNMENT_CENTER, level)
+	var reach := minf(hud.intro_age * 1.4, 1.0) * (w * 0.5 + 20.0)
+	_neon_line(PackedVector2Array([Vector2(cx - reach, y + 26.0), Vector2(cx + reach, y + 26.0)]), MAGENTA, 4.0, level)
+	_neon_text(_medium, Vector2(cx, y + 74.0), hud.intro_sub, 34, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, 0.85 * level)
 
 
 # --- Instruments -------------------------------------------------------------------

@@ -1,6 +1,8 @@
 // Tower facade: procedural window grid with randomly lit, warm/cool, occasionally
-// flickering windows, plus grime streaks. Per instance: COLOR = tint,
-// INSTANCE_CUSTOM.x = seed, .y = fraction of windows lit, .z = base height.
+// flickering windows, plus grime streaks. Some towers carry neon up their corners, a lit
+// crown under the roof line, or a red aircraft beacon that blinks along the parapet.
+// Per instance: COLOR = tint, INSTANCE_CUSTOM.x = seed, .y = fraction of windows lit,
+// .z = base height.
 shader_type spatial;
 render_mode cull_back;
 
@@ -13,11 +15,15 @@ uniform float ground_y = 0.0;
 uniform float body_brightness = 1.0;
 uniform vec3 glass : source_color = vec3(0.015, 0.015, 0.02);
 uniform float glass_roughness = 0.8;
+// How much of the tower dressing (corner neon, crowns, beacons) shows: 1 at night, low by day.
+uniform float dressing = 1.0;
 
 varying vec3 wpos;
 varying vec3 wnormal;
 varying vec4 cdata;
 varying vec3 tint;
+varying vec3 lpos;
+varying vec3 box_size;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -28,6 +34,13 @@ void vertex() {
 	wnormal = normalize(mat3(MODEL_MATRIX) * NORMAL);
 	cdata = INSTANCE_CUSTOM;
 	tint = COLOR.rgb;
+	lpos = VERTEX;
+	box_size = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
+}
+
+vec3 sign_colour(float h) {
+	vec3 c = mix(vec3(0.1, 0.9, 1.0), vec3(1.0, 0.25, 0.8), step(0.33, h));
+	return mix(c, vec3(1.0, 0.6, 0.15), step(0.66, h));
 }
 
 void fragment() {
@@ -45,7 +58,13 @@ void fragment() {
 		float side = x_face ? sign(wnormal.x) : sign(wnormal.z);
 		vec2 cell = floor(pc / vec2(window_w, window_h));
 		vec2 f = fract(pc / vec2(window_w, window_h));
-		float inside = step(0.18, f.x) * step(f.x, 0.82) * step(0.22, f.y) * step(f.y, 0.78);
+		// Window edges soften with distance, and far towers settle into an even glow
+		// instead of crawling.
+		vec2 fw = fwidth(pc / vec2(window_w, window_h));
+		float inside = smoothstep(0.18 - fw.x, 0.18 + fw.x, f.x) * (1.0 - smoothstep(0.82 - fw.x, 0.82 + fw.x, f.x))
+				* smoothstep(0.22 - fw.y, 0.22 + fw.y, f.y) * (1.0 - smoothstep(0.78 - fw.y, 0.78 + fw.y, f.y));
+		float far = smoothstep(0.35, 1.2, max(fw.x, fw.y));
+		inside = mix(inside, 0.36, far);
 		float seed = cdata.x * 97.0 + (x_face ? 13.0 : 29.0) * side;
 		float r = hash(cell + seed);
 		// Whole floors go dark now and then (empty offices, power cuts).
@@ -58,8 +77,25 @@ void fragment() {
 		if (hash(cell + seed + 9.0) > 0.94) {
 			flick = 0.4 + 0.6 * step(0.5, fract(TIME * (1.5 + r * 5.0)));
 		}
-		float glow = inside * lit * flick * (0.5 + 0.5 * hash(cell + seed + 3.0));
+		float glow = inside * mix(lit, cdata.y * 0.78, far) * flick * (0.5 + 0.5 * hash(cell + seed + 3.0));
 		emission = wc * glow;
+		// Dressing, in metres from the tower's own edges.
+		float h1 = hash(vec2(cdata.x * 31.0, 4.0));
+		float h2 = hash(vec2(cdata.x * 57.0, 9.0));
+		float across = x_face ? lpos.z * box_size.z : lpos.x * box_size.x;
+		float half_w = (x_face ? box_size.z : box_size.x) * 0.5;
+		float to_corner = half_w - abs(across);
+		float to_top = (0.5 - lpos.y) * box_size.y;
+		float tall = smoothstep(60.0, 140.0, box_size.y);
+		vec3 trim = sign_colour(h2);
+		// Neon tubes up the corners of one tower in four.
+		emission += trim * step(0.75, h1) * (1.0 - smoothstep(0.25, 0.5, to_corner)) * 2.2 * dressing;
+		// A lit crown under the roof line of the tall ones.
+		emission += trim * step(h1, 0.4) * tall * smoothstep(7.0, 6.5, to_top) * smoothstep(1.2, 1.7, to_top)
+				* (0.6 + 0.4 * step(0.5, fract(across / 3.0))) * 1.4 * dressing;
+		// Aircraft warning: the parapet of the tallest blinks red.
+		float blink = step(0.55, fract(TIME * 0.7 + h2 * 3.0));
+		emission += vec3(1.0, 0.08, 0.04) * tall * step(0.5, h2) * (1.0 - smoothstep(0.5, 0.8, to_top)) * blink * 3.0 * max(dressing, 0.5);
 		albedo = mix(albedo, glass, inside * (1.0 - lit));
 		window_glass = inside * (1.0 - lit);
 	}

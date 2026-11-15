@@ -3,7 +3,7 @@ export/
 tools/music/raw/
 out/
 addons/gamesynth/bin/*
-!addons/gamesynth/bin/gamesynth_godot.wasm
+!addons/gamesynth/bin/brusverk_godot.wasm
 .DS_Store
 build/
 tools/music/previews/

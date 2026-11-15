@@ -70,6 +70,7 @@ func _ready() -> void:
 		if ship.is_player:
 			Sfx.play("absorb"))
 	ship.wall_hit.connect(_on_wall_hit)
+	ship.respawned.connect(_restart_doppler)
 	ship.ship_hit.connect(func(strength: float):
 		_duck = maxf(_duck, 0.6)
 		if ship.is_player:
@@ -227,6 +228,17 @@ func _on_wall_hit(strength: float) -> void:
 
 func _set_gain(player: AudioStreamPlayer3D, linear: float) -> void:
 	player.volume_db = linear_to_db(maxf(linear, 0.0001)) + master_db
+
+
+## A respawn is a teleport, and Godot reads it as a one-step burst of speed: every engine
+## would blip to its Doppler limit (1/8 or 8x pitch). Re-arming tracking restarts each
+## player's velocity history at its new position.
+func _restart_doppler() -> void:
+	for p: AudioStreamPlayer3D in find_children("*", "AudioStreamPlayer3D", false, false):
+		var mode := p.doppler_tracking
+		if mode != AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED:
+			p.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
+			p.doppler_tracking = mode
 
 
 func _configure_3d(p: AudioStreamPlayer3D) -> void:

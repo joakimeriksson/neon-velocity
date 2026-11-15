@@ -4,13 +4,13 @@ compatibility_minimum = 4.7
 reloadable = true
 
 [libraries]
-macos.debug = "res://addons/gamesynth/bin/libgamesynth_godot.dylib"
-macos.release = "res://addons/gamesynth/bin/libgamesynth_godot.dylib"
-linux.debug.x86_64 = "res://addons/gamesynth/bin/libgamesynth_godot.so"
-linux.release.x86_64 = "res://addons/gamesynth/bin/libgamesynth_godot.so"
-linux.debug.arm64 = "res://addons/gamesynth/bin/libgamesynth_godot.so"
-linux.release.arm64 = "res://addons/gamesynth/bin/libgamesynth_godot.so"
-windows.debug.x86_64 = "res://addons/gamesynth/bin/gamesynth_godot.dll"
-windows.release.x86_64 = "res://addons/gamesynth/bin/gamesynth_godot.dll"
-web.debug.wasm32 = "res://addons/gamesynth/bin/gamesynth_godot.wasm"
-web.release.wasm32 = "res://addons/gamesynth/bin/gamesynth_godot.wasm"
+macos.debug = "res://addons/gamesynth/bin/libbrusverk_godot.dylib"
+macos.release = "res://addons/gamesynth/bin/libbrusverk_godot.dylib"
+linux.debug.x86_64 = "res://addons/gamesynth/bin/libbrusverk_godot.so"
+linux.release.x86_64 = "res://addons/gamesynth/bin/libbrusverk_godot.so"
+linux.debug.arm64 = "res://addons/gamesynth/bin/libbrusverk_godot.so"
+linux.release.arm64 = "res://addons/gamesynth/bin/libbrusverk_godot.so"
+windows.debug.x86_64 = "res://addons/gamesynth/bin/brusverk_godot.dll"
+windows.release.x86_64 = "res://addons/gamesynth/bin/brusverk_godot.dll"
+web.debug.wasm32 = "res://addons/gamesynth/bin/brusverk_godot.wasm"
+web.release.wasm32 = "res://addons/gamesynth/bin/brusverk_godot.wasm"
